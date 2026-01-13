@@ -47,17 +47,14 @@ export async function POST(
             return NextResponse.json({ error: 'Failed to fetch pages' }, { status: 500 });
         }
 
-        // 2. Process pages individually (Page-Level Isolation)
-        const pdfDocs: Uint8Array[] = [];
-        const missingPages: number[] = [];
+        // 2. Process pages in PARALLEL (Robust Isolation)
         const modalEndpoint = process.env.MODAL_TYPST_ENDPOINT;
 
-        for (let i = 0; i < results.length; i++) {
-            const val = results[i];
+        const renderPromises = results.map(async (val, i) => {
             let pageMarkdown = "";
 
             if (!val) {
-                missingPages.push(i);
+                // Track missing but validly return a placeholder PDF for them
                 pageMarkdown = "[MISSING PAGE CONTENT]";
             } else {
                 try {
@@ -72,6 +69,8 @@ export async function POST(
             const { sanitized, replacements } = sanitizeLatex(pageMarkdown);
 
             if (replacements > 0) {
+                // Logging every replacement might be too noisy in parallel, 
+                // but valuable for debugging. Keeping it.
                 console.log(JSON.stringify({
                     event: 'SanitizerApplied',
                     jobId,
@@ -81,47 +80,35 @@ export async function POST(
                 }));
             }
 
-            // Render Page
             try {
-                let pagePdf: Uint8Array;
+                // Attempt Render
                 const renderStart = Date.now();
+                if (!modalEndpoint) throw new Error("No rendering endpoint configured");
+
+                const response = await fetch(modalEndpoint, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ markdown: sanitized }),
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Modal status ${response.status}: ${errorText}`);
+                }
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+                if (!data.pdf) throw new Error("No PDF returned");
+
+                const pdfBuffer = Buffer.from(data.pdf, 'base64');
                 console.log(JSON.stringify({
-                    event: 'RenderAttempt',
+                    event: 'RenderSuccess',
                     jobId,
                     pageIndex: i,
-                    method: 'Modal',
+                    durationMs: Date.now() - renderStart,
                     timestamp: new Date().toISOString()
                 }));
 
-                if (modalEndpoint) {
-                    const response = await fetch(modalEndpoint, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ markdown: sanitized }),
-                    });
-
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        throw new Error(`Modal status ${response.status}: ${errorText}`);
-                    }
-                    const data = await response.json();
-                    if (data.error) throw new Error(data.error);
-                    if (!data.pdf) throw new Error("No PDF returned");
-
-                    pagePdf = Buffer.from(data.pdf, 'base64');
-
-                    console.log(JSON.stringify({
-                        event: 'RenderSuccess',
-                        jobId,
-                        pageIndex: i,
-                        durationMs: Date.now() - renderStart,
-                        timestamp: new Date().toISOString()
-                    }));
-                } else {
-                    throw new Error("No rendering endpoint configured");
-                }
-
-                pdfDocs.push(pagePdf);
+                return pdfBuffer;
 
             } catch (renderError) {
                 console.error(JSON.stringify({
@@ -133,10 +120,8 @@ export async function POST(
                 }));
 
                 // Fallback Strategy
-                // 1. Try rendering with text only (strip math)
-                // 2. If that fails, create blank PDF page with error message
-
                 try {
+                    // 1. Recover with Text-Only (Modal)
                     if (modalEndpoint) {
                         // Aggressive sanitize: strip known math delimiters
                         const textOnly = sanitized
@@ -154,7 +139,6 @@ export async function POST(
                         if (response.ok) {
                             const data = await response.json();
                             if (data.pdf) {
-                                pdfDocs.push(Buffer.from(data.pdf, 'base64'));
                                 console.log(JSON.stringify({
                                     event: 'FallbackUsed',
                                     jobId,
@@ -162,27 +146,26 @@ export async function POST(
                                     type: 'text_only_modal',
                                     timestamp: new Date().toISOString()
                                 }));
-                                continue;
+                                return Buffer.from(data.pdf, 'base64');
                             }
                         }
                     }
                 } catch (fallbackError) {
-                    console.error("Fallback render also failed", fallbackError);
+                    // ignore, go to ultimate fallback
                 }
 
-                // Ultimate fallback: Use pdf-lib to create a blank page with error text
+                // 2. Ultimate Fallback: Blank PDF with Error Message
                 try {
                     const doc = await PDFDocument.create();
                     const page = doc.addPage();
                     const { height } = page.getSize();
+                    const font = await doc.embedFont('Helvetica'); // Standard font
 
-                    page.drawText(`Page ${i + 1} Rendering Failed`, { x: 50, y: height - 50, size: 24 });
-                    page.drawText(`We apologize, but this page could not be rendered.`, { x: 50, y: height - 100, size: 12 });
-                    page.drawText(`Please check the original notes.`, { x: 50, y: height - 120, size: 12 });
+                    page.drawText(`Page ${i + 1} Rendering Failed`, { x: 50, y: height - 50, size: 24, font });
+                    page.drawText(`We apologize, but this page could not be rendered.`, { x: 50, y: height - 100, size: 12, font });
+                    page.drawText(`Please check the original notes.`, { x: 50, y: height - 120, size: 12, font });
 
                     const fallbackPdf = await doc.save();
-                    pdfDocs.push(fallbackPdf);
-
                     console.log(JSON.stringify({
                         event: 'FallbackUsed',
                         jobId,
@@ -190,14 +173,30 @@ export async function POST(
                         type: 'blank_page_pdflib',
                         timestamp: new Date().toISOString()
                     }));
+                    return fallbackPdf;
 
                 } catch (pdfLibError) {
                     console.error("Critical: Failed to generate even blank PDF page", pdfLibError);
-                    // If even this fails, we are in trouble. We might skip the page or fail job.
-                    // Skipping is safer than crashing.
+                    // Return failure signal (null) or a minimal valid PDF? 
+                    // To maintain array structure, we'll return a minimal PDF (1x1 dot) if we really have to, 
+                    // or we accept that this index is lost.
+                    // But PDFDocument.create() shouldn't typically fail.
+                    // Let's return a minimal empty PDF buffer if all else fails.
+                    return new Uint8Array(0); // This will fail at merge time, likely. 
                 }
             }
-        }
+        });
+
+        // Await all parallel requests
+        const pdfResults = await Promise.all(renderPromises);
+
+        // Filter out any completely failed renders (Uint8Array(0))
+        const pdfDocs = pdfResults.filter(b => b && b.length > 0) as Uint8Array[];
+
+        // Check for completely missing pages logic
+        const missingPages = results
+            .map((val, idx) => val ? -1 : idx)
+            .filter(idx => idx !== -1);
 
         if (missingPages.length > 0) {
             console.warn(JSON.stringify({

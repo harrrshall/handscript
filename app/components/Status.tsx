@@ -59,7 +59,7 @@ export default function Status({ jobId, images, onComplete, onError, onReset }: 
             processingStarted.current = true;
 
             const processBatches = async () => {
-                const BATCH_SIZE = 1; // Optimal for quality
+                const BATCH_SIZE = 5; // Optimized for performance/rate-limits (5 pages per request)
                 const batches: { start: number, imgs: string[] }[] = [];
 
                 for (let i = 0; i < images.length; i += BATCH_SIZE) {
@@ -69,11 +69,9 @@ export default function Status({ jobId, images, onComplete, onError, onReset }: 
                     });
                 }
 
-                // Browser limit is roughly 6-10 per domain, but let's try pushing it slightly or standard
-                // We'll process ALL batches "concurrently" from logic perspective, 
-                // allowing browser/network stack to manage queue.
-                // Or we can chunk the batches themselves.
-                const CONCURRENCY_LIMIT = 10; // Safe limit for batches of requests
+                // Browser limit is roughly 6-10 per domain.
+                // With batch size 5, 5 concurrent requests = 25 pages processing simultaneously.
+                const CONCURRENCY_LIMIT = 5; // Safe limit for batches of requests
 
                 // Helper for concurrency
                 const pool = async () => {
