@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { generateBatchNotes } from '@/lib/gemini';
+import { renderToTypst } from '@/lib/formatting';
 import { z } from 'zod';
 
 const processBatchSchema = z.object({
@@ -11,11 +12,10 @@ const processBatchSchema = z.object({
 
 export async function POST(request: Request) {
     const startTime = Date.now();
-    let body;
     let jobIdDebug = 'unknown';
 
     try {
-        body = await request.json();
+        const body = await request.json();
         const { jobId, startPageIndex, images } = processBatchSchema.parse(body);
         jobIdDebug = jobId;
 
@@ -28,9 +28,9 @@ export async function POST(request: Request) {
         }));
 
         // Call Gemini with batch of images
-        let generatedPages: string[];
+        let batchResponse;
         try {
-            generatedPages = await generateBatchNotes(images);
+            batchResponse = await generateBatchNotes(images);
         } catch (error) {
             console.error(JSON.stringify({
                 event: 'GeminiGenerationFailed',
@@ -46,73 +46,52 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Gemini generation failed' }, { status: 500 });
         }
 
-        let processedPages = generatedPages;
-        const mismatchThreshold = 2; // User defined threshold (or 3)
+        // Process the structured response into Markdown pages
+        // Initialize with error placeholders to ensure strict 1:1 mapping
+        const processedPages: string[] = new Array(images.length).fill(
+            "[UNCLEAR: Page processing failed or index out of bounds]"
+        );
 
-        // Verify count matches
-        if (generatedPages.length !== images.length) {
-            const diff = generatedPages.length - images.length;
-            const absDiff = Math.abs(diff);
+        // Map responses to their verified slots
+        // We rely on the model correctly using 'pageIndex' 0..N-1
+        batchResponse.pages.forEach((page) => {
+            if (page.pageIndex >= 0 && page.pageIndex < images.length) {
+                // Construct IR for this page
+                const pageIR = {
+                    metadata: batchResponse.metadata,
+                    content: page.content
+                };
+                // Render to Typst code using the formatting layer
+                processedPages[page.pageIndex] = renderToTypst(pageIR);
+            } else {
+                console.warn(`Gemini returned invalid pageIndex: ${page.pageIndex}`);
+            }
+        });
 
+        // Validate count (implied by array length, but check for filled slots)
+        const filledCount = processedPages.filter(p => !p.startsWith("[UNCLEAR")).length;
+        if (filledCount !== images.length) {
             console.warn(JSON.stringify({
                 event: 'PageCountMismatch',
                 jobId,
                 startPageIndex,
                 expected: images.length,
-                generated: generatedPages.length,
-                diff,
+                received: filledCount,
                 timestamp: new Date().toISOString()
             }));
-
-            // Robust Handling: If 1 image -> N pages, we ALWAYS join them, regardless of N.
-            // This fixes the issue where the model hallucinates page breaks or splits long content.
-            if (images.length === 1 && generatedPages.length > 1) {
-                processedPages = [generatedPages.join('\n\n---CONTINUED---\n\n')];
-            } else if (absDiff > mismatchThreshold) {
-                // Discard and mark as error
-                console.error(JSON.stringify({
-                    event: 'BatchDiscarded',
-                    reason: 'DeviationExceedsThreshold',
-                    jobId,
-                    startPageIndex,
-                    threshold: mismatchThreshold,
-                    diff,
-                    timestamp: new Date().toISOString()
-                }));
-
-                processedPages = images.map((_, i) =>
-                    `\n\n# Error Processing Page ${startPageIndex + i + 1}\n\n[CONVERSION ERROR: Page count mismatch (Expected ${images.length}, Got ${generatedPages.length}). High deviation detected.]\n\n`
-                );
-            } else {
-                // Handle small mismatches
-                if (generatedPages.length < images.length) {
-                    // Under-generation: Pad with error placeholders
-                    const missing = images.length - generatedPages.length;
-                    for (let i = 0; i < missing; i++) {
-                        processedPages.push("[UNCLEAR: Page processing failed or merged with previous]");
-                    }
-                } else {
-                    // Over-generation for multi-image batches (rare).
-                    // Just truncation for now to fit slots.
-                    processedPages = generatedPages.slice(0, images.length);
-                    // Append remainder to last page?
-                    const remainder = generatedPages.slice(images.length).join('\n\n');
-                    processedPages[processedPages.length - 1] += `\n\n[EXTRA CONTENT]:\n${remainder}`;
-                }
-            }
         }
 
-        // Prepare MSET object
+        // Prepare MSET object for Redis
         const msetObj: Record<string, string> = {};
-        processedPages.forEach((markdown, index) => {
+        processedPages.forEach((typst, index) => {
             const pageIndex = startPageIndex + index;
             msetObj[`job:${jobId}:page:${pageIndex}`] = JSON.stringify({
-                markdown,
+                typst,
                 status: 'complete'
             });
         });
 
-        // Store results and increment progress atomically
+        // Store results and increment progress
         await redis.mset(msetObj);
         await redis.incrby(`job:${jobId}:completed`, images.length);
 

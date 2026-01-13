@@ -51,26 +51,25 @@ export async function POST(
         const modalEndpoint = process.env.MODAL_TYPST_ENDPOINT;
 
         const renderPromises = results.map(async (val, i) => {
-            let pageMarkdown = "";
+            let pageContent = "";
 
             if (!val) {
                 // Track missing but validly return a placeholder PDF for them
-                pageMarkdown = "[MISSING PAGE CONTENT]";
+                pageContent = "[MISSING PAGE CONTENT]";
             } else {
                 try {
                     const parsed = typeof val === 'string' ? JSON.parse(val) : val;
-                    pageMarkdown = parsed.markdown || "[EMPTY PAGE]";
+                    // Support legacy 'markdown' or new 'typst'
+                    pageContent = parsed.typst || parsed.markdown || "[EMPTY PAGE]";
                 } catch (e) {
-                    pageMarkdown = "[ERROR PARSING PAGE CACHE]";
+                    pageContent = "[ERROR PARSING PAGE CACHE]";
                 }
             }
 
-            // Sanitize
-            const { sanitized, replacements } = sanitizeLatex(pageMarkdown);
+            // Sanitize (formatting layer handles structural sanitization, but we can do extra safety)
+            const { sanitized, replacements } = sanitizeLatex(pageContent);
 
             if (replacements > 0) {
-                // Logging every replacement might be too noisy in parallel, 
-                // but valuable for debugging. Keeping it.
                 console.log(JSON.stringify({
                     event: 'SanitizerApplied',
                     jobId,
@@ -88,7 +87,7 @@ export async function POST(
                 const response = await fetch(modalEndpoint, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ markdown: sanitized }),
+                    body: JSON.stringify({ typst: sanitized }),
                 });
 
                 if (!response.ok) {
