@@ -7,7 +7,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
 interface UploadProps {
-    onJobCreated: (jobId: string) => void;
+    onJobCreated: (jobId: string, images: string[]) => void;
     onError: (msg: string) => void;
 }
 
@@ -31,11 +31,10 @@ export default function Upload({ onJobCreated, onError }: UploadProps) {
                 throw new Error('PDF too large. Max 200 pages allowed.');
             }
 
-            const imageUrls: string[] = [];
-
-            // Process pages concurrently in batches
+            const images: string[] = [];
             const BATCH_SIZE = 5;
 
+            // Extract pages
             for (let i = 1; i <= totalPages; i += BATCH_SIZE) {
                 const batchEnd = Math.min(i + BATCH_SIZE - 1, totalPages);
                 setStatusText(`Extracting pages ${i}-${batchEnd} of ${totalPages}...`);
@@ -44,7 +43,7 @@ export default function Upload({ onJobCreated, onError }: UploadProps) {
                 for (let p = i; p <= batchEnd; p++) {
                     batchPromises.push((async () => {
                         const page = await pdf.getPage(p);
-                        const viewport = page.getViewport({ scale: 2.0 }); // 2.0 scale for better OCR
+                        const viewport = page.getViewport({ scale: 1.5 }); // 1.5 scale for speed/quality balance
                         const canvas = document.createElement('canvas');
                         const context = canvas.getContext('2d');
                         canvas.height = viewport.height;
@@ -52,48 +51,40 @@ export default function Upload({ onJobCreated, onError }: UploadProps) {
 
                         if (!context) throw new Error('Canvas context failed');
 
-                        // @ts-ignore - types mismatch in latest pdfjs-dist
+                        // @ts-ignore
                         await page.render({ canvasContext: context, viewport }).promise;
 
-                        // Convert to blob
-                        const blob = await new Promise<Blob>((resolve, reject) => {
-                            canvas.toBlob((b) => {
-                                if (b) resolve(b);
-                                else reject(new Error('Canvas to Blob failed'));
-                            }, 'image/png');
-                        });
-
-                        // Upload
-                        const formData = new FormData();
-                        formData.append('file', blob, `page-${p}.png`);
-
-                        const res = await fetch('/api/upload', { method: 'POST', body: formData });
-                        if (!res.ok) throw new Error('Upload failed');
-                        const data = await res.json();
-                        return { index: p - 1, url: data.url };
+                        // Get base64 (remove data:image/png;base64, prefix)
+                        const base64 = canvas.toDataURL('image/png').split(',')[1];
+                        return { index: p - 1, data: base64 };
                     })());
                 }
 
                 const batchResults = await Promise.all(batchPromises);
-                batchResults.forEach(r => imageUrls[r.index] = r.url);
+                batchResults.forEach(r => images[r.index] = r.data);
 
-                setProgress(Math.round((batchEnd / totalPages) * 50)); // First 50% is upload
+                setProgress(Math.round((batchEnd / totalPages) * 100));
             }
 
             setStatusText('Creating job...');
+            // Create job with placeholders for manifest
+            const manifestPlaceholders = new Array(totalPages).fill('pending-upload');
+
             const res = await fetch('/api/jobs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     pageCount: totalPages,
-                    pageManifest: imageUrls
+                    pageManifest: manifestPlaceholders
                 })
             });
 
             if (!res.ok) throw new Error('Failed to create job');
             const data = await res.json();
 
-            onJobCreated(data.jobId);
+            // Pass images to parent for processing
+            onJobCreated(data.jobId, images);
+
         } catch (err: any) {
             console.error(err);
             onError(err.message || 'Failed to process PDF');

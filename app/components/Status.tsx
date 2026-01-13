@@ -4,17 +4,18 @@ import { useState, useEffect, useRef } from 'react';
 
 interface StatusProps {
     jobId: string;
+    images?: string[];
     onComplete: () => void;
     onError: (msg: string) => void;
     onReset: () => void;
 }
 
-export default function Status({ jobId, onComplete, onError, onReset }: StatusProps) {
+export default function Status({ jobId, images, onComplete, onError, onReset }: StatusProps) {
     const [status, setStatus] = useState<string>('initializing');
     const [progress, setProgress] = useState({ total: 1, completed: 0, failed: 0 });
     const [finalUrl, setFinalUrl] = useState<string | null>(null);
 
-    const hasTriggeredAssembly = useRef(false);
+    const hasTriggeredFinalize = useRef(false);
     const processingStarted = useRef(false);
 
     useEffect(() => {
@@ -54,45 +55,84 @@ export default function Status({ jobId, onComplete, onError, onReset }: StatusPr
     }, [jobId, onComplete, onError]);
 
     useEffect(() => {
-        if (progress.total > 0 && !processingStarted.current && status !== 'complete') {
+        if (images && images.length > 0 && !processingStarted.current && status !== 'complete') {
             processingStarted.current = true;
 
-            const processPages = async () => {
-                const CONCURRENCY = 10;
-                const pages = Array.from({ length: progress.total }, (_, i) => i);
+            const processBatches = async () => {
+                const BATCH_SIZE = 1; // Optimal for quality
+                const batches: { start: number, imgs: string[] }[] = [];
 
-                for (let i = 0; i < pages.length; i += CONCURRENCY) {
-                    const batch = pages.slice(i, i + CONCURRENCY);
-                    await Promise.all(batch.map(pageIndex =>
-                        fetch('/api/process', {
+                for (let i = 0; i < images.length; i += BATCH_SIZE) {
+                    batches.push({
+                        start: i,
+                        imgs: images.slice(i, i + BATCH_SIZE)
+                    });
+                }
+
+                // Browser limit is roughly 6-10 per domain, but let's try pushing it slightly or standard
+                // We'll process ALL batches "concurrently" from logic perspective, 
+                // allowing browser/network stack to manage queue.
+                // Or we can chunk the batches themselves.
+                const CONCURRENCY_LIMIT = 10; // Safe limit for batches of requests
+
+                // Helper for concurrency
+                const pool = async () => {
+                    const results = [];
+                    const executing: Promise<any>[] = [];
+
+                    for (const batch of batches) {
+                        const p = fetch('/api/process-batch', {
                             method: 'POST',
-                            body: JSON.stringify({ jobId, pageIndex })
-                        })
-                    ));
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                jobId,
+                                startPageIndex: batch.start,
+                                images: batch.imgs
+                            })
+                        }).then(r => {
+                            if (!r.ok) throw new Error(`Batch failed: ${r.statusText}`);
+                            return r.json();
+                        });
+
+                        results.push(p);
+                        const e: Promise<any> = p.then(() => executing.splice(executing.indexOf(e), 1));
+                        executing.push(e);
+
+                        if (executing.length >= CONCURRENCY_LIMIT) {
+                            await Promise.race(executing);
+                        }
+                    }
+                    return Promise.all(results);
+                };
+
+                try {
+                    await pool();
+                    // All batches sent and resolved
+                } catch (e: any) {
+                    console.error("Batch processing error", e);
+                    // Continue to polling? Or finalize anyway?
                 }
             };
 
-            processPages().catch(console.error);
+            processBatches().catch(console.error);
         }
-    }, [progress.total, jobId, status]);
+    }, [images, jobId, status]);
 
     useEffect(() => {
         if (
-            !hasTriggeredAssembly.current &&
+            !hasTriggeredFinalize.current &&
             progress.total > 0 &&
-            progress.completed + progress.failed === progress.total &&
+            // Check if done
+            (progress.completed + progress.failed >= progress.total) &&
             status === 'processing'
         ) {
-            hasTriggeredAssembly.current = true;
+            hasTriggeredFinalize.current = true;
             (async () => {
                 try {
-                    setStatus('assembling');
-                    const assembleRes = await fetch(`/api/jobs/${jobId}/assemble`, { method: 'POST' });
-                    if (!assembleRes.ok) throw new Error('Assembly failed');
-
-                    setStatus('rendering');
-                    const renderRes = await fetch(`/api/jobs/${jobId}/render`, { method: 'POST' });
-                    if (!renderRes.ok) throw new Error('Render failed');
+                    setStatus('finalizing');
+                    const res = await fetch(`/api/jobs/${jobId}/finalize`, { method: 'POST' });
+                    if (!res.ok) throw new Error('Finalize failed');
+                    // Finalize should update status to complete, which polling will pick up
                 } catch (err: any) {
                     onError(err.message);
                 }

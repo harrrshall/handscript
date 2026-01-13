@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import Upload from './components/Upload';
-import Status from './components/Status';
-import Header from './components/Header';
+import Upload from '@/app/components/Upload';
+import Status from '@/app/components/Status';
+import Header from '@/app/components/Header';
 
 export type AppState = 'upload' | 'processing' | 'complete' | 'error';
 
@@ -11,9 +11,11 @@ export default function Home() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [state, setState] = useState<AppState>('upload');
   const [error, setError] = useState<string | null>(null);
+  const [images, setImages] = useState<string[]>([]);
 
-  const handleJobCreated = (id: string) => {
+  const handleJobCreated = (id: string, extractedImages: string[]) => {
     setJobId(id);
+    setImages(extractedImages);
     setState('processing');
   };
 
@@ -28,6 +30,7 @@ export default function Home() {
 
   const reset = () => {
     setJobId(null);
+    setImages([]);
     setState('upload');
     setError(null);
   };
@@ -53,6 +56,7 @@ export default function Home() {
         {(state === 'processing' || state === 'complete') && jobId && (
           <Status
             jobId={jobId}
+            images={images}
             onComplete={handleComplete}
             onError={handleError}
             onReset={reset}
