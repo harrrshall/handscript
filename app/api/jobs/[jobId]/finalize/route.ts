@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { uploadFile } from '@/lib/blob';
 import { compileTypst } from '@/lib/typst';
+import { sanitizeLatex } from '@/lib/latex-sanitizer';
 
 export async function POST(
     request: Request,
@@ -85,6 +86,9 @@ export async function POST(
         }
 
         // 3. Render to PDF
+        // Sanitize LaTeX before rendering
+        const sanitizedMarkdown = sanitizeLatex(assembledMarkdown);
+
         let pdfUrl: string;
         const modalEndpoint = process.env.MODAL_TYPST_ENDPOINT;
 
@@ -94,7 +98,7 @@ export async function POST(
                 const response = await fetch(modalEndpoint, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ markdown: assembledMarkdown }),
+                    body: JSON.stringify({ markdown: sanitizedMarkdown }),
                 });
 
                 if (!response.ok) {
@@ -111,8 +115,29 @@ export async function POST(
                 const pdfBuffer = Buffer.from(pdf, "base64");
                 pdfUrl = await uploadFile(pdfBuffer, `${jobId}.pdf`);
             } else {
+                // On Vercel, this branch should effectively be unreachable if configured correctly,
+                // or we return an error because local fallback is not supported.
+                // However, for local dev, we might still want it.
+                // But the solution says "Remove dead fallback code". 
+                // If we are strictly fixing Vercel, we should assume MODAL_TYPST_ENDPOINT is set.
+                // If it's NOT set, and we are on Vercel, we fail.
+                // If we are local, we can keep it? 
+                // The instruction was "Remove broken local local fallback".
+                // "The local fallback was designed for development environments... dead code in production."
+                // "Option A: Remove local typst call entirely"
+
+                // However, I see `compileTypst` being imported.
+                // Let's rely on the environment check.
+                // If NO modal endpoint, we *could* try local if we are sure we are not on Vercel,
+                // but checking for Vercel env is better.
+                // For now, I will remove the logic that *tries* to fallback if Modal fails.
+                // And if no Modal endpoint is provided, I will throw an error or use local ONLY if explicit.
+
+                // Current logic: if (modalEndpoint) try modal, else local.
+                // New logic: Same, BUT remove the CATCH block that falls back.
+
                 console.log(JSON.stringify({ event: 'RenderingMode', mode: 'LocalTypst', jobId }));
-                pdfUrl = await compileTypst(assembledMarkdown, jobId);
+                pdfUrl = await compileTypst(sanitizedMarkdown, jobId);
             }
         } catch (renderError) {
             console.error(JSON.stringify({
@@ -121,18 +146,7 @@ export async function POST(
                 error: String(renderError),
                 timestamp: new Date().toISOString()
             }));
-
-            // Fallback logic
-            if (modalEndpoint) {
-                console.log(JSON.stringify({ event: 'FallbackStart', jobId }));
-                try {
-                    pdfUrl = await compileTypst(assembledMarkdown, jobId);
-                } catch (fallbackError) {
-                    throw renderError; // Throw original error if fallback also fails
-                }
-            } else {
-                throw renderError;
-            }
+            throw renderError; // Fail immediately, do not try fallback
         }
 
         // 4. Update Job
