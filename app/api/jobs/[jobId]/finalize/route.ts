@@ -69,11 +69,29 @@ export async function POST(
             }
 
             // Sanitize
-            const sanitized = sanitizeLatex(pageMarkdown);
+            const { sanitized, replacements } = sanitizeLatex(pageMarkdown);
+
+            if (replacements > 0) {
+                console.log(JSON.stringify({
+                    event: 'SanitizerApplied',
+                    jobId,
+                    pageIndex: i,
+                    replacements,
+                    timestamp: new Date().toISOString()
+                }));
+            }
 
             // Render Page
             try {
                 let pagePdf: Uint8Array;
+                const renderStart = Date.now();
+                console.log(JSON.stringify({
+                    event: 'RenderAttempt',
+                    jobId,
+                    pageIndex: i,
+                    method: 'Modal',
+                    timestamp: new Date().toISOString()
+                }));
 
                 if (modalEndpoint) {
                     const response = await fetch(modalEndpoint, {
@@ -91,6 +109,14 @@ export async function POST(
                     if (!data.pdf) throw new Error("No PDF returned");
 
                     pagePdf = Buffer.from(data.pdf, 'base64');
+
+                    console.log(JSON.stringify({
+                        event: 'RenderSuccess',
+                        jobId,
+                        pageIndex: i,
+                        durationMs: Date.now() - renderStart,
+                        timestamp: new Date().toISOString()
+                    }));
                 } else {
                     throw new Error("No rendering endpoint configured");
                 }
@@ -99,10 +125,11 @@ export async function POST(
 
             } catch (renderError) {
                 console.error(JSON.stringify({
-                    event: 'PageRenderFailed',
+                    event: 'RenderFailed',
                     jobId,
                     pageIndex: i,
-                    error: String(renderError)
+                    error: String(renderError),
+                    timestamp: new Date().toISOString()
                 }));
 
                 // Fallback Strategy
@@ -128,7 +155,13 @@ export async function POST(
                             const data = await response.json();
                             if (data.pdf) {
                                 pdfDocs.push(Buffer.from(data.pdf, 'base64'));
-                                console.log(`Page ${i} recovered via text-only fallback`);
+                                console.log(JSON.stringify({
+                                    event: 'FallbackUsed',
+                                    jobId,
+                                    pageIndex: i,
+                                    type: 'text_only_modal',
+                                    timestamp: new Date().toISOString()
+                                }));
                                 continue;
                             }
                         }
@@ -149,6 +182,15 @@ export async function POST(
 
                     const fallbackPdf = await doc.save();
                     pdfDocs.push(fallbackPdf);
+
+                    console.log(JSON.stringify({
+                        event: 'FallbackUsed',
+                        jobId,
+                        pageIndex: i,
+                        type: 'blank_page_pdflib',
+                        timestamp: new Date().toISOString()
+                    }));
+
                 } catch (pdfLibError) {
                     console.error("Critical: Failed to generate even blank PDF page", pdfLibError);
                     // If even this fails, we are in trouble. We might skip the page or fail job.
