@@ -3,6 +3,7 @@ import { redis } from '@/lib/redis';
 import { uploadFile } from '@/lib/blob';
 import { compileTypst } from '@/lib/typst';
 import { sanitizeLatex } from '@/lib/latex-sanitizer';
+import { PDFDocument } from 'pdf-lib';
 
 export async function POST(
     request: Request,
@@ -46,32 +47,113 @@ export async function POST(
             return NextResponse.json({ error: 'Failed to fetch pages' }, { status: 500 });
         }
 
-        // 2. Assemble markdown
-        let assembledMarkdown = '';
+        // 2. Process pages individually (Page-Level Isolation)
+        const pdfDocs: Uint8Array[] = [];
         const missingPages: number[] = [];
+        const modalEndpoint = process.env.MODAL_TYPST_ENDPOINT;
 
         for (let i = 0; i < results.length; i++) {
             const val = results[i];
+            let pageMarkdown = "";
 
             if (!val) {
                 missingPages.push(i);
-                assembledMarkdown += `\n\n<!-- Page ${i + 1} (MISSING) -->\n\n[MISSING PAGE ${i + 1}]\n`;
-                continue;
+                pageMarkdown = "[MISSING PAGE CONTENT]";
+            } else {
+                try {
+                    const parsed = typeof val === 'string' ? JSON.parse(val) : val;
+                    pageMarkdown = parsed.markdown || "[EMPTY PAGE]";
+                } catch (e) {
+                    pageMarkdown = "[ERROR PARSING PAGE CACHE]";
+                }
             }
 
+            // Sanitize
+            const sanitized = sanitizeLatex(pageMarkdown);
+
+            // Render Page
             try {
-                // val is JSON string { markdown, status }
-                const parsed = typeof val === 'string' ? JSON.parse(val) : val;
-                if (parsed.markdown) {
-                    assembledMarkdown += `\n\n<!-- Page ${i + 1} -->\n\n${parsed.markdown}`;
+                let pagePdf: Uint8Array;
+
+                if (modalEndpoint) {
+                    const response = await fetch(modalEndpoint, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ markdown: sanitized }),
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`Modal status ${response.status}: ${errorText}`);
+                    }
+                    const data = await response.json();
+                    if (data.error) throw new Error(data.error);
+                    if (!data.pdf) throw new Error("No PDF returned");
+
+                    pagePdf = Buffer.from(data.pdf, 'base64');
                 } else {
-                    missingPages.push(i);
-                    assembledMarkdown += `\n\n<!-- Page ${i + 1} (EMPTY) -->\n\n[EMPTY PAGE ${i + 1}]\n`;
+                    throw new Error("No rendering endpoint configured");
                 }
-            } catch (e) {
-                console.error(`Failed to parse result for page ${i}:`, val);
-                missingPages.push(i);
-                assembledMarkdown += `\n\n<!-- Page ${i + 1} (ERROR) -->\n\n[ERROR PARSING PAGE ${i + 1}]\n`;
+
+                pdfDocs.push(pagePdf);
+
+            } catch (renderError) {
+                console.error(JSON.stringify({
+                    event: 'PageRenderFailed',
+                    jobId,
+                    pageIndex: i,
+                    error: String(renderError)
+                }));
+
+                // Fallback Strategy
+                // 1. Try rendering with text only (strip math)
+                // 2. If that fails, create blank PDF page with error message
+
+                try {
+                    if (modalEndpoint) {
+                        // Aggressive sanitize: strip known math delimiters
+                        const textOnly = sanitized
+                            .replace(/\$\$[\s\S]*?\$\$/g, '[COMPLEX MATH REMOVED]')
+                            .replace(/\$[^$]+\$/g, '[MATH REMOVED]');
+
+                        const fallbackMd = `# Page ${i + 1} (Recovered)\n\n> **Note:** The original content could not be fully rendered due to complex mathematical notation. The raw text is preserved below.\n\n---\n\n${textOnly}`;
+
+                        const response = await fetch(modalEndpoint, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ markdown: fallbackMd }),
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data.pdf) {
+                                pdfDocs.push(Buffer.from(data.pdf, 'base64'));
+                                console.log(`Page ${i} recovered via text-only fallback`);
+                                continue;
+                            }
+                        }
+                    }
+                } catch (fallbackError) {
+                    console.error("Fallback render also failed", fallbackError);
+                }
+
+                // Ultimate fallback: Use pdf-lib to create a blank page with error text
+                try {
+                    const doc = await PDFDocument.create();
+                    const page = doc.addPage();
+                    const { height } = page.getSize();
+
+                    page.drawText(`Page ${i + 1} Rendering Failed`, { x: 50, y: height - 50, size: 24 });
+                    page.drawText(`We apologize, but this page could not be rendered.`, { x: 50, y: height - 100, size: 12 });
+                    page.drawText(`Please check the original notes.`, { x: 50, y: height - 120, size: 12 });
+
+                    const fallbackPdf = await doc.save();
+                    pdfDocs.push(fallbackPdf);
+                } catch (pdfLibError) {
+                    console.error("Critical: Failed to generate even blank PDF page", pdfLibError);
+                    // If even this fails, we are in trouble. We might skip the page or fail job.
+                    // Skipping is safer than crashing.
+                }
             }
         }
 
@@ -85,69 +167,21 @@ export async function POST(
             }));
         }
 
-        // 3. Render to PDF
-        // Sanitize LaTeX before rendering
-        const sanitizedMarkdown = sanitizeLatex(assembledMarkdown);
-
-        let pdfUrl: string;
-        const modalEndpoint = process.env.MODAL_TYPST_ENDPOINT;
-
-        try {
-            if (modalEndpoint) {
-                console.log(JSON.stringify({ event: 'RenderingMode', mode: 'Modal', jobId }));
-                const response = await fetch(modalEndpoint, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ markdown: sanitizedMarkdown }),
-                });
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Modal service failed: ${response.status} ${errorText}`);
-                }
-
-                const data = await response.json();
-                const { pdf, error } = data;
-
-                if (error) throw new Error(`Typst error: ${error}`);
-                if (!pdf) throw new Error('No PDF returned from Modal');
-
-                const pdfBuffer = Buffer.from(pdf, "base64");
-                pdfUrl = await uploadFile(pdfBuffer, `${jobId}.pdf`);
-            } else {
-                // On Vercel, this branch should effectively be unreachable if configured correctly,
-                // or we return an error because local fallback is not supported.
-                // However, for local dev, we might still want it.
-                // But the solution says "Remove dead fallback code". 
-                // If we are strictly fixing Vercel, we should assume MODAL_TYPST_ENDPOINT is set.
-                // If it's NOT set, and we are on Vercel, we fail.
-                // If we are local, we can keep it? 
-                // The instruction was "Remove broken local local fallback".
-                // "The local fallback was designed for development environments... dead code in production."
-                // "Option A: Remove local typst call entirely"
-
-                // However, I see `compileTypst` being imported.
-                // Let's rely on the environment check.
-                // If NO modal endpoint, we *could* try local if we are sure we are not on Vercel,
-                // but checking for Vercel env is better.
-                // For now, I will remove the logic that *tries* to fallback if Modal fails.
-                // And if no Modal endpoint is provided, I will throw an error or use local ONLY if explicit.
-
-                // Current logic: if (modalEndpoint) try modal, else local.
-                // New logic: Same, BUT remove the CATCH block that falls back.
-
-                console.log(JSON.stringify({ event: 'RenderingMode', mode: 'LocalTypst', jobId }));
-                pdfUrl = await compileTypst(sanitizedMarkdown, jobId);
-            }
-        } catch (renderError) {
-            console.error(JSON.stringify({
-                event: 'RenderError',
-                jobId,
-                error: String(renderError),
-                timestamp: new Date().toISOString()
-            }));
-            throw renderError; // Fail immediately, do not try fallback
+        // 3. Merge PDFs
+        if (pdfDocs.length === 0) {
+            console.error(JSON.stringify({ event: 'NoPagesGenerated', jobId }));
+            return NextResponse.json({ error: 'No pages could be generated' }, { status: 500 });
         }
+
+        const mergedPdf = await PDFDocument.create();
+        for (const pdfBytes of pdfDocs) {
+            const doc = await PDFDocument.load(pdfBytes);
+            const copiedPages = await mergedPdf.copyPages(doc, doc.getPageIndices());
+            copiedPages.forEach((page) => mergedPdf.addPage(page));
+        }
+
+        const finalPdfBytes = await mergedPdf.save();
+        const pdfUrl = await uploadFile(Buffer.from(finalPdfBytes), `${jobId}.pdf`);
 
         // 4. Update Job
         job.status = 'complete';
