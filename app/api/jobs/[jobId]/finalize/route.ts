@@ -7,23 +7,41 @@ export async function POST(
     request: Request,
     { params }: { params: Promise<{ jobId: string }> }
 ) {
+    const startTime = Date.now();
     const { jobId } = await params;
+
+    console.log(JSON.stringify({
+        event: 'FinalizeStart',
+        jobId,
+        timestamp: new Date().toISOString()
+    }));
 
     try {
         const job: any = await redis.get(`job:${jobId}`);
         if (!job) {
+            console.error(JSON.stringify({
+                event: 'FinalizeError',
+                jobId,
+                error: 'Job not found in Redis',
+                timestamp: new Date().toISOString()
+            }));
             return NextResponse.json({ error: 'Job not found' }, { status: 404 });
         }
 
         // 1. Fetch all page results ONCE
-        // Note: We use the same keys as stored by process-batch
         const keys = Array.from({ length: job.totalPages }, (_, i) => `job:${jobId}:page:${i}`);
 
         let results: (string | null)[];
         try {
             results = await redis.mget(keys);
         } catch (e) {
-            console.error('Redis MGET failed:', e);
+            console.error(JSON.stringify({
+                event: 'RedisError',
+                jobId,
+                operation: 'mget',
+                error: String(e),
+                timestamp: new Date().toISOString()
+            }));
             return NextResponse.json({ error: 'Failed to fetch pages' }, { status: 500 });
         }
 
@@ -57,9 +75,13 @@ export async function POST(
         }
 
         if (missingPages.length > 0) {
-            console.warn(`Job ${jobId} finalizing with missing pages: ${missingPages.join(', ')}`);
-            // We proceed anyway to give partial result? Or fail? 
-            // Better to proceed so user gets SOMETHING.
+            console.warn(JSON.stringify({
+                event: 'MissingPagesDetected',
+                jobId,
+                missingCount: missingPages.length,
+                missingIndices: missingPages,
+                timestamp: new Date().toISOString()
+            }));
         }
 
         // 3. Render to PDF
@@ -68,7 +90,7 @@ export async function POST(
 
         try {
             if (modalEndpoint) {
-                console.log('Using Modal.com for PDF generation...');
+                console.log(JSON.stringify({ event: 'RenderingMode', mode: 'Modal', jobId }));
                 const response = await fetch(modalEndpoint, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -89,15 +111,20 @@ export async function POST(
                 const pdfBuffer = Buffer.from(pdf, "base64");
                 pdfUrl = await uploadFile(pdfBuffer, `${jobId}.pdf`);
             } else {
-                console.log('MODAL_TYPST_ENDPOINT not set, using local Typst compilation.');
+                console.log(JSON.stringify({ event: 'RenderingMode', mode: 'LocalTypst', jobId }));
                 pdfUrl = await compileTypst(assembledMarkdown, jobId);
             }
         } catch (renderError) {
-            console.error('PDF generation failed:', renderError);
-            // If primary method failed, maybe try fallback if it was Modal? 
-            // Logic in existing render route tried fallback. Let's do that too.
+            console.error(JSON.stringify({
+                event: 'RenderError',
+                jobId,
+                error: String(renderError),
+                timestamp: new Date().toISOString()
+            }));
+
+            // Fallback logic
             if (modalEndpoint) {
-                console.log('Attempting local fallback...');
+                console.log(JSON.stringify({ event: 'FallbackStart', jobId }));
                 try {
                     pdfUrl = await compileTypst(assembledMarkdown, jobId);
                 } catch (fallbackError) {
@@ -111,12 +138,22 @@ export async function POST(
         // 4. Update Job
         job.status = 'complete';
         job.finalPdfUrl = pdfUrl;
-        job.completedPages = job.totalPages; // Ensure it looks done
+        job.completedPages = job.totalPages;
 
         // Persist final state
         await redis.set(`job:${jobId}`, job, { ex: 30 * 24 * 60 * 60 });
 
-        // Also cleanup keys? optional. keep for debugging.
+        const totalDuration = Date.now() - startTime;
+
+        console.log(JSON.stringify({
+            event: 'JobComplete',
+            jobId,
+            pages: job.totalPages,
+            missingPages: missingPages.length,
+            durationMs: totalDuration,
+            pdfUrl,
+            timestamp: new Date().toISOString()
+        }));
 
         return NextResponse.json({
             success: true,
@@ -124,7 +161,13 @@ export async function POST(
         });
 
     } catch (error) {
-        console.error('Finalize failed:', error);
+        console.error(JSON.stringify({
+            event: 'FinalizeFailed',
+            jobId,
+            error: String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+            timestamp: new Date().toISOString()
+        }));
         return NextResponse.json({ error: 'Finalize failed', details: String(error) }, { status: 500 });
     }
 }
