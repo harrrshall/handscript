@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 import util from 'util';
+import pLimit from 'p-limit';
 
 const execPromise = util.promisify(exec);
 const BASE_URL = 'http://localhost:3000';
@@ -10,6 +11,7 @@ const PDF_PATH = '/home/cybernovas/Desktop/2026/handscript/mdnotes.pdf';
 const TEMP_IMG_DIR = path.join(process.cwd(), 'scripts', 'temp_images');
 
 async function main() {
+    const startTime = Date.now();
     console.log('Starting Real PDF E2E Test...');
 
     // 0. Prepare temp dir
@@ -45,16 +47,6 @@ async function main() {
 
             if (!uploadRes.ok) throw new Error(`Upload failed: ${uploadRes.statusText}`);
             const uploadData = await uploadRes.json();
-            // Use data URI to avoid fetch issues on server side in test env if needed, 
-            // BUT for 'real' file testing, let's try the URL first. 
-            // If it fails like before, we fallback to data URI.
-            // The failure before was "Bad Request" from Gemini on the *URL* passed?
-            // No, Gemini fetch failed. The server fetches the URL.
-            // If URL is localhost, server needs to resolve it.
-            // My previous fix used Data URI. Let's use Data URI for reliability here too.
-
-            // const base64 = buffer.toString('base64');
-            // imageUrls.push(`data:image/png;base64,${base64}`);
             imageUrls.push(uploadData.url);
         } catch (e) {
             console.error(`Failed to upload ${file}`, e);
@@ -80,8 +72,9 @@ async function main() {
 
     // 4. Process Pages
     console.log('Processing pages...');
+    const limit = pLimit(50); // Limit to 50 concurrent requests to Gemini
     const pagePromises = imageUrls.map((_, index) => {
-        return (async () => {
+        return limit(async () => {
             console.log(`Triggering page ${index}...`);
             const res = await fetch(`${BASE_URL}/api/process`, {
                 method: 'POST',
@@ -94,7 +87,7 @@ async function main() {
             }
             const data = await res.json();
             console.log(`Page ${index} complete. Markdown length: ${data.markdown?.length}`);
-        })();
+        });
     });
 
     await Promise.all(pagePromises);
@@ -121,7 +114,6 @@ async function main() {
     console.log('Final PDF URL:', renderData.pdfUrl);
 
     // 7. Download result
-    // If local URL, read from disk to Verify
     if (renderData.pdfUrl.startsWith('http://localhost:3000/uploads/')) {
         const filename = renderData.pdfUrl.replace('http://localhost:3000/uploads/', '');
         const localPath = path.join(process.cwd(), 'public', 'uploads', filename);
@@ -135,6 +127,8 @@ async function main() {
     }
 
     console.log('Real PDF Test PASSED!');
+    const duration = (Date.now() - startTime) / 1000;
+    console.log(`Total Time Taken: ${duration.toFixed(2)} seconds`);
 }
 
 main().catch(err => {
