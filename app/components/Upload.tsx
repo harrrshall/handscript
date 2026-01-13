@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Start the worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@4.8.69/build/pdf.worker.min.mjs`;
 
 interface UploadProps {
     onJobCreated: (jobId: string, images: string[]) => void;
