@@ -6,12 +6,17 @@ import { nanoid } from 'nanoid';
 import os from 'os';
 
 const IS_LOCAL = !process.env.BLOB_READ_WRITE_TOKEN;
-// Use /tmp in production/vercel, public/uploads locally
-const LOCAL_UPLOAD_DIR = process.env.VERCEL
-    ? path.join(os.tmpdir(), 'uploads')
-    : path.join(process.cwd(), 'public/uploads');
+
+// In local development, we use public/uploads.
+// In production (Vercel), we MUST use Vercel Blob. We should not attempt to write to disk.
+const LOCAL_UPLOAD_DIR = path.join(process.cwd(), 'public/uploads');
 
 function ensureUploadDir() {
+    // If we are on Vercel but have no token, this is a critical misconfiguration.
+    if (process.env.VERCEL && !process.env.BLOB_READ_WRITE_TOKEN) {
+        throw new Error("Missing BLOB_READ_WRITE_TOKEN in Vercel environment. Cannot save files.");
+    }
+
     if (IS_LOCAL && !fs.existsSync(LOCAL_UPLOAD_DIR)) {
         fs.mkdirSync(LOCAL_UPLOAD_DIR, { recursive: true });
     }
