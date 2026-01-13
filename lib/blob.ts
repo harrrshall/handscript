@@ -3,11 +3,16 @@ import fs from 'fs';
 import path from 'path';
 import { nanoid } from 'nanoid';
 
-const IS_LOCAL = !process.env.BLOB_READ_WRITE_TOKEN;
-const LOCAL_UPLOAD_DIR = path.join(process.cwd(), 'public/uploads');
+import os from 'os';
 
-if (IS_LOCAL) {
-    if (!fs.existsSync(LOCAL_UPLOAD_DIR)) {
+const IS_LOCAL = !process.env.BLOB_READ_WRITE_TOKEN;
+// Use /tmp in production/vercel, public/uploads locally
+const LOCAL_UPLOAD_DIR = process.env.VERCEL
+    ? path.join(os.tmpdir(), 'uploads')
+    : path.join(process.cwd(), 'public/uploads');
+
+function ensureUploadDir() {
+    if (IS_LOCAL && !fs.existsSync(LOCAL_UPLOAD_DIR)) {
         fs.mkdirSync(LOCAL_UPLOAD_DIR, { recursive: true });
     }
 }
@@ -16,6 +21,7 @@ export async function uploadFile(file: File | Blob | Buffer | string, filename: 
     const name = filename || `file-${nanoid()}`;
 
     if (IS_LOCAL) {
+        ensureUploadDir();
         const buffer = Buffer.isBuffer(file)
             ? file
             : typeof file === 'string'

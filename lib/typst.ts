@@ -4,13 +4,17 @@ import path from 'path';
 import util from 'util';
 import { uploadFile } from './blob';
 
+import os from 'os';
+
 const execPromise = util.promisify(exec);
 
 const TYPST_TEMPLATE_DIR = path.join(process.cwd(), 'typst');
-const TEMP_DIR = path.join(process.cwd(), 'tmp');
+const TEMP_DIR = path.join(os.tmpdir(), 'handscript-typst');
 
-if (!fs.existsSync(TEMP_DIR)) {
-    fs.mkdirSync(TEMP_DIR, { recursive: true });
+function ensureTempDir() {
+    if (!fs.existsSync(TEMP_DIR)) {
+        fs.mkdirSync(TEMP_DIR, { recursive: true });
+    }
 }
 
 export async function renderMarkdownToPdf(markdownFiles: string[], jobId: string): Promise<string> {
@@ -36,6 +40,7 @@ export async function compileTypst(markdownContent: string, jobId: string): Prom
     // Typst 0.12 lets us pass inputs via CLI, but standard way is `typst compile main.typ`
     // We can copy the template to a temp dir along with the content.
 
+    ensureTempDir();
     const jobDir = path.join(TEMP_DIR, jobId);
     if (!fs.existsSync(jobDir)) fs.mkdirSync(jobDir, { recursive: true });
 
