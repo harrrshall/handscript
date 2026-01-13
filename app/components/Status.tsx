@@ -150,7 +150,7 @@ export default function Status({ jobId, images, onComplete, onError, onReset }: 
                 </div>
                 <h2 className="text-2xl font-bold">Conversion Complete!</h2>
                 <a
-                    href={finalUrl}
+                    href={`/api/download?url=${encodeURIComponent(finalUrl)}`}
                     download="handscript-notes.pdf"
                     className="inline-block px-8 py-3 bg-black dark:bg-white text-white dark:text-black rounded-lg font-bold shadow-lg hover:scale-105 transition-transform"
                 >

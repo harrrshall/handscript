@@ -7,7 +7,7 @@ if (!process.env.GEMINI_API_KEY) {
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Use gemini-2.5-flash-lite as requested
-const MODEL_NAME = 'gemini-2.5-flash-lite';
+const MODEL_NAME = 'gemini-2.5-flash';
 
 export const geminiModel = genAI.getGenerativeModel({ model: MODEL_NAME });
 
@@ -628,7 +628,7 @@ You are an elite academic transcription specialist with triple expertise in pale
                               PAGE PROCESSING
 ═══════════════════════════════════════════════════════════════════════════════
 
-You will receive multiple page images. Process each page independently and sequentially.
+Process each page independently and sequentially.
 
 After completing EACH page, insert this exact delimiter on its own line:
 ---PAGE_BREAK---
