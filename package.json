@@ -9,9 +9,15 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@upstash/redis": "^1.36.1",
+    "@vercel/blob": "^2.0.0",
+    "nanoid": "^5.1.6",
     "next": "16.1.1",
+    "pdfjs-dist": "^5.4.530",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
