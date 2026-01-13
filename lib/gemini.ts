@@ -1214,6 +1214,44 @@ Separate pages with ---PAGE_BREAK--- exactly as specified.
 Output ONLY the transcription. Begin.
 `;
 
+// Helper for exponential backoff
+async function wait(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function withRetry<T>(
+    operation: () => Promise<T>,
+    maxRetries: number = 5,
+    baseDelay: number = 1000
+): Promise<T> {
+    let lastError: any;
+
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            return await operation();
+        } catch (error: any) {
+            lastError = error;
+            const errorString = String(error);
+
+            // Check for retryable errors
+            const isOverloaded = errorString.includes('503') || errorString.includes('Overloaded');
+            const isRateLimit = errorString.includes('429');
+
+            if (isOverloaded || isRateLimit) {
+                const delay = baseDelay * Math.pow(2, i) + (Math.random() * 500); // jitter
+                console.warn(`Gemini API Error (Attempt ${i + 1}/${maxRetries}): ${isOverloaded ? 'Overloaded' : 'Rate Limit'}. Retrying in ${delay.toFixed(0)}ms...`);
+                await wait(delay);
+                continue;
+            }
+
+            // Throw strictly non-retryable errors immediately
+            throw error;
+        }
+    }
+
+    throw lastError;
+}
+
 export async function generateBatchNotes(images: string[]) {
     const parts: any[] = [
         { text: BATCH_SYSTEM_PROMPT },
@@ -1230,10 +1268,11 @@ export async function generateBatchNotes(images: string[]) {
 
     parts.push({ text: "Process each page. Separate with ---PAGE_BREAK---" });
 
-    const result = await geminiModel.generateContent(parts);
-    const response = await result.response;
-    const text = response.text();
-
-    return text.split('---PAGE_BREAK---').map(t => t.trim()).filter(Boolean);
+    return withRetry(async () => {
+        const result = await geminiModel.generateContent(parts);
+        const response = await result.response;
+        const text = response.text();
+        return text.split('---PAGE_BREAK---').map(t => t.trim()).filter(Boolean);
+    }, 5, 2000); // Start with 2s delay for overloaded models
 }
 
