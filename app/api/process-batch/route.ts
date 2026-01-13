@@ -64,7 +64,11 @@ export async function POST(request: Request) {
                 timestamp: new Date().toISOString()
             }));
 
-            if (absDiff > mismatchThreshold) {
+            // Robust Handling: If 1 image -> N pages, we ALWAYS join them, regardless of N.
+            // This fixes the issue where the model hallucinates page breaks or splits long content.
+            if (images.length === 1 && generatedPages.length > 1) {
+                processedPages = [generatedPages.join('\n\n---CONTINUED---\n\n')];
+            } else if (absDiff > mismatchThreshold) {
                 // Discard and mark as error
                 console.error(JSON.stringify({
                     event: 'BatchDiscarded',
@@ -88,23 +92,12 @@ export async function POST(request: Request) {
                         processedPages.push("[UNCLEAR: Page processing failed or merged with previous]");
                     }
                 } else {
-                    // Over-generation (e.g. 1 image -> 2 pages): Merge them?
-                    // Strategy: If 1 image -> N pages, join them.
-                    // If M images -> N pages, it's harder.
-                    // Simple heuristic: Join all generated content and try to split? No, complex.
-                    // Fallback: Just take the first N and append the rest to the last one? 
-                    // Better: Join all and assign to first page if batch size is 1.
-                    if (images.length === 1) {
-                        const combined = generatedPages.join('\n\n---CONTINUED---\n\n');
-                        processedPages = [combined];
-                    } else {
-                        // Batch > 1 and Over-generation. Rare but tricky.
-                        // Just truncation for now to fit slots.
-                        processedPages = generatedPages.slice(0, images.length);
-                        // Append remainder to last page?
-                        const remainder = generatedPages.slice(images.length).join('\n\n');
-                        processedPages[processedPages.length - 1] += `\n\n[EXTRA CONTENT]:\n${remainder}`;
-                    }
+                    // Over-generation for multi-image batches (rare).
+                    // Just truncation for now to fit slots.
+                    processedPages = generatedPages.slice(0, images.length);
+                    // Append remainder to last page?
+                    const remainder = generatedPages.slice(images.length).join('\n\n');
+                    processedPages[processedPages.length - 1] += `\n\n[EXTRA CONTENT]:\n${remainder}`;
                 }
             }
         }
