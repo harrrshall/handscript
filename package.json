@@ -1,0 +1,38 @@
+{
+  "name": "handscript",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build --webpack",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@types/katex": "^0.16.8",
+    "@upstash/redis": "^1.36.1",
+    "@vercel/blob": "^2.0.0",
+    "katex": "^0.16.27",
+    "nanoid": "^5.1.6",
+    "next": "16.1.1",
+    "p-limit": "^7.2.0",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "4.8.69",
+    "playwright": "^1.57.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "zod": "^3.24.1",
+    "zod-to-json-schema": "^3.25.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.1",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
