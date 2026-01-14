@@ -2,7 +2,7 @@ import { exec } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import util from 'util';
-import { uploadFile } from './blob';
+import { uploadFile, getDownloadUrl } from '@/lib/s3';
 
 import os from 'os';
 
@@ -53,12 +53,16 @@ export async function compileTypst(typstContent: string, jobId: string): Promise
         }
 
         const pdfBuffer = fs.readFileSync(pdfPath);
-        const pdfUrl = await uploadFile(pdfBuffer, `${jobId}.pdf`);
+        // uploadFile returns key
+        const key = await uploadFile(`${jobId}.pdf`, pdfBuffer, 'application/pdf');
+        // generate signed url
+        const pdfUrl = await getDownloadUrl(key);
 
         // Cleanup
         // fs.rmSync(jobDir, { recursive: true, force: true });
 
         return pdfUrl;
+
     } catch (error) {
         console.error('Typst compilation failed:', error);
         throw error;
