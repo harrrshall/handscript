@@ -54,52 +54,57 @@ export async function POST(request: Request) {
         }));
 
         // Call Gemini with signed URLs
-        let batchResponse: BatchResponse;
 
-        // CHECKPOINTING LOGIC
-        const fs = await import('fs');
-        const path = await import('path');
-        const crypto = await import('crypto');
+        // CHECKPOINTING LOGIC (Local Development Only)
+        // Vercel filesystem is read-only, so we must skip this in production.
+        const isDev = process.env.NODE_ENV === 'development';
 
-        // Hash based on keys (reliable identifier)
-        const inputHash = crypto.createHash('md5').update(JSON.stringify(keys)).digest('hex');
-        const checkpointDir = path.join(process.cwd(), 'debug', 'checkpoints');
-        const checkpointFile = path.join(checkpointDir, `${jobId}_${startPageIndex}_${inputHash}.json`);
+        let batchResponse: BatchResponse | null = null;
 
-        try {
-            if (fs.existsSync(checkpointFile)) {
-                console.log(`[Checkpoint] Loading Gemini response from ${checkpointFile}`);
-                const cachedData = fs.readFileSync(checkpointFile, 'utf-8');
-                batchResponse = JSON.parse(cachedData) as BatchResponse;
-            } else {
-                console.log(`[Checkpoint] No cache found, calling Gemini...`);
-                batchResponse = await generateBatchNotes(signedUrls);
+        if (isDev) {
+            const fs = await import('fs');
+            const path = await import('path');
+            const crypto = await import('crypto');
 
-                if (!fs.existsSync(checkpointDir)) {
-                    fs.mkdirSync(checkpointDir, { recursive: true });
+            // Hash based on keys (reliable identifier)
+            const inputHash = crypto.createHash('md5').update(JSON.stringify(keys)).digest('hex');
+            const checkpointDir = path.join(process.cwd(), 'debug', 'checkpoints');
+            const checkpointFile = path.join(checkpointDir, `${jobId}_${startPageIndex}_${inputHash}.json`);
+
+            try {
+                if (fs.existsSync(checkpointFile)) {
+                    console.log(`[Checkpoint] Loading Gemini response from ${checkpointFile}`);
+                    const cachedData = fs.readFileSync(checkpointFile, 'utf-8');
+                    batchResponse = JSON.parse(cachedData) as BatchResponse;
                 }
-                fs.writeFileSync(checkpointFile, JSON.stringify(batchResponse, null, 2));
+            } catch (e) {
+                console.warn("[Checkpoint] Read failed", e);
             }
 
-        } catch (error) {
-            console.error(JSON.stringify({
-                event: 'GeminiGenerationFailed',
-                jobId,
-                startPageIndex,
-                error: String(error),
-                timestamp: new Date().toISOString()
-            }));
+            if (!batchResponse) {
+                console.log(`[Checkpoint] No cache found or not in dev, calling Gemini...`);
+                batchResponse = await generateBatchNotes(signedUrls);
 
-            // Mark pages as failed
-            const failedIndices = keys.map((_, i) => startPageIndex + i);
-            await redis.lpush(`job:${jobId}:failed`, ...failedIndices);
-            return NextResponse.json({ error: 'Gemini generation failed' }, { status: 500 });
+                try {
+                    if (!fs.existsSync(checkpointDir)) {
+                        fs.mkdirSync(checkpointDir, { recursive: true });
+                    }
+                    fs.writeFileSync(checkpointFile, JSON.stringify(batchResponse, null, 2));
+                } catch (e) {
+                    console.warn("[Checkpoint] Write failed", e);
+                }
+            }
+        } else {
+            // Production: Direct Call
+            batchResponse = await generateBatchNotes(signedUrls);
         }
 
         // Process the structured response into HTML
         const processedPages: string[] = new Array(keys.length).fill(
             "<p>[UNCLEAR: Page processing failed or index out of bounds]</p>"
         );
+
+        if (!batchResponse) throw new Error("Failed to generate batch response");
 
         batchResponse.pages.forEach((page: Page) => {
             if (page.pageIndex >= 0 && page.pageIndex < keys.length) {
