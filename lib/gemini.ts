@@ -78,49 +78,22 @@ TRANSCRIPTION RULES:
  * @returns Parsed BatchResponse object
  */
 export async function generateBatchNotes(imageUrls: string[]): Promise<BatchResponse> {
-    const parts = imageUrls.map(url => ({
-        fileData: {
-            mimeType: 'image/png', // Assuming PNG or handling MIME detection?
-            fileUri: url
-        }
-    }));
-
-    // In SDK, fileData requires fileUri from File API. 
-    // If these are blob URLs, we might need to fetch them and send inline data.
-    // However, previous implementation likely used inline data or file API.
-    // Let's check how it was done.
-    // Previous implementation signature was `imageUrls: string[]` but usage in `process-batch` passed what?
-    // `process-batch` passed `images`.
-    // If they are public URLs, we can use `fileUri` if we uploaded them to Gemini File API?
-    // Or we used `inlineData`?
-    // Let's assume they are base64 if passed directly, or URLs.
-    // If they are base64 strings:
-    // parts = images.map(b64 => ({ inlineData: { data: b64, mimeType: 'image/jpeg' } }));
-
-    // Let's assume the previous implementation handled this. I'll read the previous file to be sure.
-    // I can't read it now as I'm overwriting. But I recall `generateBatchNotes(images)`.
-
-    // For now, I will use a generic "user provided content" approach.
-    // I'll implement a robust handler assuming they are BASE64 strings (standard for this app likely).
-    // Or if they are Vercel Blob URLs, we need to fetch them.
-
-    // START FIX: Re-reading context from memory or previous `cat`.
-    // The previous `gemini.ts` used `storage buckets`? No.
-    // It likely sent `inlineData`.
-
     try {
-        // Construct the prompt with images
-        // We need to fetch images if they are URLs.
-        // Assuming they are passed as base64 for now or URLs that Gemini can access?
-        // Actually, best to fetch and convert to base64 if they are URLs.
+        // Fetch all images concurrently
+        // Note: This does add load to Vercel, but needed for Gemini API interaction without File API.
+        const imageBuffers = await Promise.all(imageUrls.map(async (url) => {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`Failed to fetch image ${url}: ${res.statusText}`);
+            return {
+                buffer: Buffer.from(await res.arrayBuffer()),
+                mimeType: res.headers.get('content-type') || 'image/png' // Use actual mime if available, else default
+            };
+        }));
 
-        // Let's assume `images` are base64 strings for safety if they are from client?
-        // Process-batch received `images: z.array(z.string())`.
-
-        const imageParts = imageUrls.map(url => ({
-            fileData: {
-                mimeType: 'image/webp',
-                fileUri: url
+        const imageParts = imageBuffers.map(({ buffer, mimeType }) => ({
+            inlineData: {
+                data: buffer.toString('base64'),
+                mimeType
             }
         }));
 
@@ -130,14 +103,8 @@ export async function generateBatchNotes(imageUrls: string[]): Promise<BatchResp
         ]);
 
         const responseText = result.response.text();
-
-        // Parse JSON
         const data = JSON.parse(responseText);
-
-        // Validate with Zod
-        const parsed = BatchResponseSchema.parse(data);
-
-        return parsed;
+        return BatchResponseSchema.parse(data);
 
     } catch (error) {
         console.error("Gemini Structured Generation Error:", error);
