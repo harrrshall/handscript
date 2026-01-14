@@ -59,7 +59,7 @@ export default function Status({ jobId, images, onComplete, onError, onReset }: 
             processingStarted.current = true;
 
             const processBatches = async () => {
-                const BATCH_SIZE = 5; // Optimized for performance/rate-limits (5 pages per request)
+                const BATCH_SIZE = 1; // Reduced to 1 to avoid Vercel 4.5MB payload limit
                 const batches: { start: number, imgs: string[] }[] = [];
 
                 for (let i = 0; i < images.length; i += BATCH_SIZE) {
