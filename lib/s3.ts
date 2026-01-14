@@ -103,10 +103,11 @@ export async function listFiles(options?: { limit?: number; cursor?: string }) {
     };
 }
 
-export async function getDownloadUrl(key: string, expiresSec = 3600) {
+export async function getDownloadUrl(key: string, expiresSec = 3600, downloadName?: string) {
     const command = new GetObjectCommand({
         Bucket: BUCKET_NAME,
         Key: key,
+        ResponseContentDisposition: downloadName ? `attachment; filename="${downloadName}"` : undefined,
     });
     return await getSignedUrl(s3Client, command, { expiresIn: expiresSec });
 }

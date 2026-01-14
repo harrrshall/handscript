@@ -206,8 +206,8 @@ export async function POST(
         const finalPdfBytes = await mergedPdf.save();
         const pdfKey = await uploadFile(`outputs/${jobId}.pdf`, Buffer.from(finalPdfBytes), 'application/pdf');
 
-        // Generate pre-signed URL for immediate access
-        const pdfUrl = await getDownloadUrl(pdfKey);
+        // Generate pre-signed URL for immediate access (Force download)
+        const pdfUrl = await getDownloadUrl(pdfKey, 3600, 'handscript-notes.pdf');
 
         // 4. Update Job
         job.status = 'complete';
