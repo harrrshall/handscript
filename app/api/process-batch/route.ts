@@ -36,7 +36,12 @@ export async function POST(request: Request) {
             jobId,
             startPageIndex,
             batchSize: keys.length,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            envCheck: {
+                B2_ENDPOINT: process.env.B2_ENDPOINT ? 'set' : 'missing',
+                B2_BUCKET_NAME: process.env.B2_BUCKET_NAME ? 'set' : 'missing',
+                GEMINI_API_KEY: process.env.GEMINI_API_KEY ? 'set' : 'missing',
+            }
         }));
 
         // Generate signed URLs for Gemini
@@ -134,17 +139,33 @@ export async function POST(request: Request) {
             processedCount: keys.length
         });
 
-    } catch (error) {
+
+    } catch (error: any) {
         console.error(JSON.stringify({
             event: 'BatchProcessingError',
             jobId: jobIdDebug,
-            error: String(error),
+            error: error.message || String(error),
+            stack: error.stack,
+            type: error.constructor.name,
+            env: {
+                hasB2Endpoint: !!process.env.B2_ENDPOINT,
+                hasB2Bucket: !!process.env.B2_BUCKET_NAME,
+                hasGeminiKey: !!process.env.GEMINI_API_KEY,
+                nodeEnv: process.env.NODE_ENV,
+            },
             timestamp: new Date().toISOString()
         }));
 
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: (error as any).errors }, { status: 400 });
         }
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+
+        // Return more specific error details to the client for debugging (remove in strict production if needed, but helpful now)
+        return NextResponse.json({
+            error: 'Internal server error',
+            details: error.message,
+            debugId: jobIdDebug
+        }, { status: 500 });
     }
 }
+

@@ -88,7 +88,14 @@ export default function Status({ jobId, images, onComplete, onError, onReset }: 
                                 keys: batch.keys
                             })
                         }).then(r => {
-                            if (!r.ok) throw new Error(`Batch failed: ${r.statusText}`);
+                            if (!r.ok) {
+                                return r.json().then(errData => {
+                                    throw new Error(errData.details || `Batch failed: ${r.statusText}`);
+                                }).catch(e => {
+                                    // Fallback if json parsing fails
+                                    throw new Error(`Batch failed: ${r.statusText}`);
+                                });
+                            }
                             return r.json();
                         });
 
