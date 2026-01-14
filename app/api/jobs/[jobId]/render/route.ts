@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
-import { uploadFile } from '@/lib/blob';
+import { uploadFile, getDownloadUrl } from '@/lib/s3';
 import { wrapWithTemplate } from '@/lib/html-template';
 
 export async function POST(
@@ -39,7 +39,7 @@ export async function POST(
         let pdfUrl: string;
 
         // Call Modal.com endpoint if configured
-        const modalEndpoint = process.env.MODAL_PDF_ENDPOINT;
+        const modalEndpoint = process.env.MODAL_TYPST_ENDPOINT;
 
         if (modalEndpoint) {
             try {
@@ -71,14 +71,15 @@ export async function POST(
 
                 // Upload to Vercel Blob
                 const pdfBuffer = Buffer.from(pdf, "base64");
-                pdfUrl = await uploadFile(pdfBuffer, `${jobId}.pdf`);
+                const pdfKey = await uploadFile(`${jobId}.pdf`, pdfBuffer, 'application/pdf');
+                pdfUrl = await getDownloadUrl(pdfKey);
             } catch (modalError) {
                 console.error('Modal generation failed:', modalError);
                 throw modalError;
             }
         } else {
-            console.log('MODAL_PDF_ENDPOINT not set.');
-            throw new Error('MODAL_PDF_ENDPOINT not set');
+            console.log('MODAL_TYPST_ENDPOINT not set.');
+            throw new Error('MODAL_TYPST_ENDPOINT not set');
         }
 
         // Update Job

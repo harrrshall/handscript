@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
-import { uploadFile } from '@/lib/blob';
+import { uploadFile, deleteFile, getDownloadUrl } from '@/lib/s3';
 import { wrapWithTemplate } from '@/lib/html-template';
 import { PDFDocument } from 'pdf-lib';
 
@@ -47,7 +47,7 @@ export async function POST(
         }
 
         // 2. Process pages in PARALLEL (Robust Isolation)
-        const modalEndpoint = process.env.MODAL_PDF_ENDPOINT;
+        const modalEndpoint = process.env.MODAL_TYPST_ENDPOINT;
 
         const renderPromises = results.map(async (val, i) => {
             let pageHtml = "";
@@ -192,15 +192,43 @@ export async function POST(
         }
 
         const finalPdfBytes = await mergedPdf.save();
-        const pdfUrl = await uploadFile(Buffer.from(finalPdfBytes), `${jobId}.pdf`);
+        const pdfKey = await uploadFile(`outputs/${jobId}.pdf`, Buffer.from(finalPdfBytes), 'application/pdf');
+
+        // Generate pre-signed URL for immediate access
+        const pdfUrl = await getDownloadUrl(pdfKey);
 
         // 4. Update Job
         job.status = 'complete';
-        job.finalPdfUrl = pdfUrl;
+        job.finalPdfUrl = pdfUrl; // Presigned URL for frontend
+        job.finalPdfKey = pdfKey; // Store key for future re-signing if needed
         job.completedPages = job.totalPages;
 
         // Persist final state
         await redis.set(`job:${jobId}`, job, { ex: 30 * 24 * 60 * 60 });
+
+        // CLEANUP: Immediately delete input images to save storage
+        // We do this asynchronously so we don't block the response, but we catch errors to log them.
+        (async () => {
+            try {
+                const inputFiles = job.pageManifest;
+                if (inputFiles && inputFiles.length > 0) {
+                    await deleteFile(inputFiles);
+                    console.log(JSON.stringify({
+                        event: 'InputCleanup',
+                        jobId,
+                        count: inputFiles.length,
+                        timestamp: new Date().toISOString()
+                    }));
+                }
+            } catch (cleanupError) {
+                console.error(JSON.stringify({
+                    event: 'InputCleanupFailed',
+                    jobId,
+                    error: String(cleanupError),
+                    timestamp: new Date().toISOString()
+                }));
+            }
+        })();
 
         const totalDuration = Date.now() - startTime;
 

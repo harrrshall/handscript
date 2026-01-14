@@ -43,3 +43,5 @@ scripts/temp_images
 scripts/temp_images_batch
 public/uploads
 tmp
+test-output/
+

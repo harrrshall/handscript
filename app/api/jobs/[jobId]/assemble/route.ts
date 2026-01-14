@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
-import { uploadFile } from '@/lib/blob';
+import { uploadFile, getDownloadUrl } from '@/lib/s3';
 
 export async function POST(
     request: Request,
@@ -41,19 +41,14 @@ export async function POST(
         }
 
         // Store assembled markdown
-        const bucketUrl = await uploadFile(assembledMarkdown, `${jobId}-assembled.md`);
+        const markdownKey = await uploadFile(`${jobId}-assembled.md`, assembledMarkdown, 'text/markdown');
 
-        // Also store in Redis merely for quick access if needed, or just link
-        // Storing large text in Redis might simply be inefficient, but for assembly step we have it in memory.
-
-        // Ready for render
-        // Actually, we can trigger render here or let client call render.
-        // Design says: Client calls /assemble, then /render.
-        // assemble returns markdown Url.
+        // Generate presigned URL
+        const markdownUrl = await getDownloadUrl(markdownKey);
 
         return NextResponse.json({
             success: true,
-            markdownUrl: bucketUrl,
+            markdownUrl,
             markdownContent: assembledMarkdown // Sending back content optionally if client wants to preview
         });
     } catch (error) {

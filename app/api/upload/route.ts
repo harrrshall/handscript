@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { uploadFile } from '@/lib/blob';
+import { uploadFile, getDownloadUrl } from '@/lib/s3';
 
 export async function POST(request: Request) {
     try {
@@ -11,7 +11,14 @@ export async function POST(request: Request) {
         }
 
         const filename = file.name;
-        const url = await uploadFile(file, filename);
+        const buffer = Buffer.from(await file.arrayBuffer());
+
+        // Enforce inputs/ directory for organization and easier cleanup
+        // uploadFile now returns the KEY, not the URL.
+        const key = await uploadFile(`inputs/${filename}`, buffer, file.type || 'application/pdf');
+
+        // Generate a pre-signed URL for immediate access (e.g. for preview)
+        const url = await getDownloadUrl(key);
 
         return NextResponse.json({ url });
     } catch (error) {
