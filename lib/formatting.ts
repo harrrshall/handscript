@@ -29,50 +29,162 @@ export function renderToHtml(ir: DocumentIR): string {
 }
 
 /**
- * Process text content to replace LaTeX math delimiters with KaTeX rendered HTML.
+ * Process text content to replace Markdown and LaTeX.
+ * Strategy: Extract Math -> Process Markdown -> Restore (Render) Math.
  */
 function processContent(text: string): string {
     if (!text) return "";
 
-    // Replace block math $$ ... $$
-    let processed = text.replace(/\$\$([\s\S]*?)\$\$/g, (match, latex) => {
-        const cleaned = sanitizeLatex(latex);
-        try {
-            return katex.renderToString(cleaned, {
-                displayMode: true,
-                throwOnError: false,
-                output: "html",
-            });
-        } catch (e) {
-            return `<div class="katex-error">${latex}</div>`;
-        }
+    const mathPlaceholders: string[] = [];
+
+    // 1. Extract Display Math $$...$$
+    let temp = text.replace(/\$\$([\s\S]*?)\$\$/g, (match, latex) => {
+        mathPlaceholders.push(renderMath(latex, true));
+        return `__MATH_DISP_${mathPlaceholders.length - 1}__`;
     });
 
-    // Replace inline math $ ... $
-    processed = processed.replace(/\$([^$]+?)\$/g, (match, latex) => {
-        const cleaned = sanitizeLatex(latex);
-        try {
-            return katex.renderToString(cleaned, {
-                displayMode: false,
-                throwOnError: false,
-                output: "html",
-            });
-        } catch (e) {
-            return `<span class="katex-error">${latex}</span>`;
-        }
+    // 2. Extract Inline Math $...$
+    temp = temp.replace(/\$([^$]+?)\$/g, (match, latex) => {
+        mathPlaceholders.push(renderMath(latex, false));
+        return `__MATH_INLINE_${mathPlaceholders.length - 1}__`;
     });
 
-    // Convert newlines to <br> for text content, but be careful not to break HTML tags if any.
-    // Since we are constructing HTML, we should escape HTML special characters in the text parts *before* replacing math?
-    // Actually, simple text usually doesn't have HTML. But to be safe, we might want to basic escape.
-    // For now, assuming LLM output is markdown-ish.
-    // If we escape everything, we break the already rendered KaTeX.
-    // So ideally: split by math, escape text parts, render math parts, join.
-    // But simple replace above assumes text is safe or we don't care about XSS locally for PDF gen.
-    // Given this goes to Puppeteer, XSS isn't a huge risk unless it leaks data, but it's isolated.
-    // I'll stick to simple replacement for now as per solution.
+    // 3. Process Markdown Tables
+    // Look for table blocks: lines starting with | (ignoring leading whitespace)
+    // We need to handle this carefully. A table is a chunk of lines.
+    // Since 'text' here is from a paragraph block, it might contains newlines.
 
-    return processed;
+    // Simple table parser strategy:
+    // Split by double newline to identify potential blocks, or process line by line?
+    // Given the input is likely a single "text" string from JSON, let's look for the patterns.
+
+    if (temp.includes('|')) {
+        temp = processTables(temp);
+    }
+
+    // 4. Process Basic Formats (Bold, Italic)
+    // **bold**
+    temp = temp.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    // *italic*
+    temp = temp.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+    // 5. Convert remaining newlines to <br> if proper, but usually paragraphs handle flow.
+    // However, if there are explicit newlines in the text json, we should preserve them?
+    // Markdown ignores single newlines. Double newlines are paragraphs. 
+    // But here we are IN a paragraph block usually. 
+    // Let's replace single newlines with spaces or just leave them for HTML to collapse.
+    // BUT if the user wants a line break? Two spaces + newline?
+    // For now, let's treat it as standard HTML whitespace (collapsing) unless we see explicit <br> intent.
+
+    // 6. Restore Math
+    temp = temp.replace(/__MATH_DISP_(\d+)__/g, (_, index) => mathPlaceholders[parseInt(index)] || "");
+    temp = temp.replace(/__MATH_INLINE_(\d+)__/g, (_, index) => mathPlaceholders[parseInt(index)] || "");
+
+    return temp;
+}
+
+function renderMath(latex: string, displayMode: boolean): string {
+    const cleaned = sanitizeLatex(latex);
+    try {
+        return katex.renderToString(cleaned, {
+            displayMode,
+            throwOnError: false, // Per Rule 13.1
+            output: "html",
+        });
+    } catch (e) {
+        const errorTag = displayMode ? "div" : "span";
+        return `<${errorTag} class="katex-error" style="color:red;">${cleaned}</${errorTag}>`;
+    }
+}
+
+function processTables(text: string): string {
+    // Regex for a table structure
+    const lines = text.trim().split('\n');
+    let inTable = false;
+    let tableBuffer: string[] = [];
+    let output: string[] = [];
+
+    const flushTable = () => {
+        if (tableBuffer.length > 0) {
+            output.push(renderTable(tableBuffer));
+            tableBuffer = [];
+        }
+    };
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+            inTable = true;
+            tableBuffer.push(trimmed);
+        } else {
+            if (inTable) {
+                flushTable();
+                inTable = false;
+            }
+            output.push(line);
+        }
+    }
+    if (inTable) flushTable();
+
+    return output.join('\n');
+}
+
+function renderTable(lines: string[]): string {
+    if (lines.length < 2) return lines.join('\n'); // Not a valid table
+
+    // Check second line for separator
+    const headerRow = lines[0];
+    const separatorRow = lines[1];
+
+    if (!separatorRow.includes('---')) return lines.join('\n'); // Basic check
+
+    // Parse alignment from separator |:---|:---:|---:|
+    const alignments = separatorRow.split('|')
+        .slice(1, -1)
+        .map(cell => {
+            const c = cell.trim();
+            if (c.startsWith(':') && c.endsWith(':')) return 'center';
+            if (c.endsWith(':')) return 'right';
+            return 'left';
+        });
+
+    let html = '<table>\n';
+
+    // Header
+    html += '<thead><tr>';
+    const headers = headerRow.split('|').slice(1, -1);
+    headers.forEach((h, i) => {
+        html += `<th style="text-align: ${alignments[i] || 'left'}">${processContent(h.trim())}</th>`;
+    });
+    html += '</tr></thead>\n';
+
+    // Body
+    html += '<tbody>\n';
+    for (let i = 2; i < lines.length; i++) {
+        const row = lines[i];
+        const cells = row.split('|').slice(1, -1);
+        html += '<tr>';
+        cells.forEach((c, index) => {
+            html += `<td style="text-align: ${alignments[index] || 'left'}">${processContent(c.trim())}</td>`;
+        });
+        html += '</tr>\n';
+    }
+    html += '</tbody></table>';
+
+    return html;
+}
+
+function getBlockTitleHtml(kind: string, title?: string): string {
+    // Rule: "Theorem" or "Theorem: [Name]"
+    if (kind === 'proof') return ''; // Handled by CSS ::before
+
+    const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+    const displayKind = capitalize(kind);
+
+    if (title) {
+        return `<strong>${displayKind}: ${title}</strong>`;
+    }
+    return `<strong>${displayKind}</strong>`;
 }
 
 function renderBlock(block: ContentBlock): string {
@@ -85,18 +197,7 @@ function renderBlock(block: ContentBlock): string {
             return `<h${level}>${processContent(block.text)}</h${level}>`;
 
         case "math":
-            const cleaned = sanitizeLatex(block.latex);
-            try {
-                return katex.renderToString(cleaned, {
-                    displayMode: block.display,
-                    throwOnError: false,
-                    output: "html",
-                });
-            } catch (e) {
-                return block.display
-                    ? `<div class="katex-error">${block.latex}</div>`
-                    : `<span class="katex-error">${block.latex}</span>`;
-            }
+            return renderMath(block.latex, block.display);
 
         case "list":
             const tag = block.ordered ? "ol" : "ul";
@@ -106,7 +207,7 @@ function renderBlock(block: ContentBlock): string {
             return `<${tag}>${items}</${tag}>`;
 
         case "container":
-            const titleHtml = block.title ? `<h4>${block.title}</h4>` : "";
+            const titleHtml = getBlockTitleHtml(block.kind, block.title);
             // Maps types to CSS classes
             return `<div class="${block.kind}">
                 ${titleHtml}
@@ -114,11 +215,11 @@ function renderBlock(block: ContentBlock): string {
             </div>`;
 
         case "diagram":
+            // Rule Part 4: Structured diagram description
             return `<figure class="diagram">
-                <div style="border: 1px solid #ccc; padding: 20px; background: #fafafa;">
-                    <strong>Diagram: ${block.label || "Untitled"}</strong>
-                    <br/><br/>
-                    ${processContent(block.description)}
+                <div style="text-align:left; display: inline-block;">
+                    <strong>${block.label ? `Diagram: ${block.label}` : "Diagram"}</strong>
+                    <div>${processContent(block.description)}</div>
                 </div>
             </figure>`;
 
@@ -126,4 +227,5 @@ function renderBlock(block: ContentBlock): string {
             return "";
     }
 }
+
 
