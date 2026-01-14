@@ -29,8 +29,35 @@ export async function POST(request: Request) {
 
         // Call Gemini with batch of images
         let batchResponse;
+
+        // CHECKPOINTING LOGIC (For debugging/cost-saving)
+        const fs = await import('fs');
+        const path = await import('path');
+        const crypto = await import('crypto');
+
+        // Generate a simple hash of the input images to serve as a cache key
+        const inputHash = crypto.createHash('md5').update(JSON.stringify(images)).digest('hex');
+        const checkpointDir = path.join(process.cwd(), 'debug', 'checkpoints');
+        const checkpointFile = path.join(checkpointDir, `${jobId}_${startPageIndex}_${inputHash}.json`);
+
         try {
-            batchResponse = await generateBatchNotes(images);
+            // Check if checkpoint exists
+            if (fs.existsSync(checkpointFile)) {
+                console.log(`[Checkpoint] Loading Gemini response from ${checkpointFile}`);
+                const cachedData = fs.readFileSync(checkpointFile, 'utf-8');
+                batchResponse = JSON.parse(cachedData);
+            } else {
+                console.log(`[Checkpoint] No cache found, calling Gemini...`);
+                batchResponse = await generateBatchNotes(images);
+
+                // Save checkpoint
+                if (!fs.existsSync(checkpointDir)) {
+                    fs.mkdirSync(checkpointDir, { recursive: true });
+                }
+                fs.writeFileSync(checkpointFile, JSON.stringify(batchResponse, null, 2));
+                console.log(`[Checkpoint] Saved response to ${checkpointFile}`);
+            }
+
         } catch (error) {
             console.error(JSON.stringify({
                 event: 'GeminiGenerationFailed',

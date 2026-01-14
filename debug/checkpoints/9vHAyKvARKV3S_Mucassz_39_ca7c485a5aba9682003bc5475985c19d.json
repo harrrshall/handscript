@@ -1,0 +1,65 @@
+{
+  "metadata": {
+    "title": "Theories of Failure",
+    "subject": "Machine Design",
+    "documentType": "lecture"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "(3) St. Venant's theory or Maximum Strain Theory:"
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_1 - \\nu(\\sigma_2 + \\sigma_3) \\\\ \\sigma_2 - \\nu(\\sigma_1 + \\sigma_3) \\\\ \\sigma_3 - \\nu(\\sigma_1 + \\sigma_2) \\\\ = \\frac{\\sigma_y}{\\text{FOS}}",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "$\\sigma_y$ = yield strength"
+        },
+        {
+          "type": "paragraph",
+          "text": "$\\nu$ = Poisson ratio"
+        },
+        {
+          "type": "paragraph",
+          "text": "FOS = factor of safety"
+        },
+        {
+          "type": "paragraph",
+          "text": "(4) Maximum Strain Energy Theorem:"
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_1^2 + \\sigma_2^2 + \\sigma_3^2 - 2\\nu(\\sigma_1\\sigma_2 + \\sigma_2\\sigma_3 + \\sigma_3\\sigma_1) = \\sigma_y^2",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "to avoid failure = $(\\frac{\\sigma_y}{\\text{FOS}})^2$"
+        },
+        {
+          "type": "paragraph",
+          "text": "(5) Octahedral or Distortion Energy Theory (von-Mises Theory)"
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_1^2 + \\sigma_2^2 + \\sigma_3^2 - \\sigma_1\\sigma_2 - \\sigma_2\\sigma_3 - \\sigma_3\\sigma_1 = \\sigma_y^2",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "Prevent failure = $(\\frac{\\sigma_y}{\\text{FOS}})^2$"
+        },
+        {
+          "type": "paragraph",
+          "text": "Question: A bolt of a machine is subjected to axial pull of 10 kN or a transverse shear load of 5 kN. Find the diameter of bolt using all theories of failure."
+        }
+      ]
+    }
+  ]
+}

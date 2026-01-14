@@ -1,0 +1,92 @@
+{
+  "metadata": {
+    "title": "Variable Stress in Machine Parts",
+    "subject": "Machine Design",
+    "documentType": "lecture"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "• Variable stress in m/c parts:-"
+        },
+        {
+          "type": "paragraph",
+          "text": "• Cyclic stress (completely reverse)"
+        },
+        {
+          "type": "diagram",
+          "description": "A sine wave oscillating symmetrically around the x-axis (zero stress). The peak is labeled $\\sigma_{max}$ and the trough is labeled $\\sigma_{min}$. The mean stress $\\sigma_m = 0$ is indicated by the x-axis."
+        },
+        {
+          "type": "paragraph",
+          "text": "$R = \\text{Stress ratio}$"
+        },
+        {
+          "type": "math",
+          "latex": "R = \\frac{\\sigma_{min}}{\\sigma_{max}}",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "R = -1"
+        },
+        {
+          "type": "paragraph",
+          "text": "• Repeated stress"
+        },
+        {
+          "type": "diagram",
+          "description": "A sine wave starting from zero, going to a positive peak, then back to zero. The peak is labeled $\\sigma_{max}$. The minimum stress $\\sigma_{min} = 0$ is indicated by the x-axis. Lines for mean stress $\\sigma_m$ and stress amplitude $\\sigma_a$ are also marked on the y-axis."
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_m = \\frac{\\sigma_{max} + \\sigma_{min}}{2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_a = \\frac{\\sigma_{max} - \\sigma_{min}}{2}",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "R = 0"
+        },
+        {
+          "type": "paragraph",
+          "text": "• Fluctuating"
+        },
+        {
+          "type": "diagram",
+          "description": "A sine wave oscillating between a positive peak $\\sigma_{max}$ and a negative trough $\\sigma_{min}$. A mean stress line $\\sigma_m$ is drawn above the x-axis, and the stress amplitude $\\sigma_a$ is indicated around this mean stress line."
+        },
+        {
+          "type": "diagram",
+          "description": "A 2D graph with 'compression' on the y-axis and 'tensile' on the x-axis. A diagonal line starts from the origin. Regions are labeled for different stress ratios R: R > 1 (top left), R = -1 (bottom left), R = 0 (bottom right), $0 < R < 1$ (right side)."
+        },
+        {
+          "type": "diagram",
+          "description": "A stress vs. number of cycles (S-N) curve. Stress is on the y-axis ($\\sigma$) and No. of cycles is on the x-axis. The curve shows high stress for low cycles, and then flattens out, indicating an endurance limit or endurance load. A horizontal line is labeled 'endurance load'."
+        },
+        {
+          "type": "paragraph",
+          "text": "$K_p = \\text{Fatigue stress (Concentration factor)}$"
+        },
+        {
+          "type": "container",
+          "kind": "definition",
+          "title": "Kp",
+          "content": "It is defined as the ratio of endurance stress without stress concentration to that of endurance stress with stress concentration."
+        },
+        {
+          "type": "math",
+          "latex": "K_f = \\frac{S_e \\text{ max } S_r}{S_e \\text{ min } S_f}",
+          "display": true
+        }
+      ]
+    }
+  ]
+}

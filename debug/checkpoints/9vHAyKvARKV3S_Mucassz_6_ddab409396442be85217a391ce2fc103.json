@@ -1,0 +1,98 @@
+{
+  "metadata": {
+    "title": "Bearing Stress",
+    "subject": "Machine Design",
+    "documentType": "lecture"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "* Bearing Stress (Localized compressive stress) = Load / Projected Area"
+        },
+        {
+          "type": "paragraph",
+          "text": "= Load / $L \\times D$"
+        },
+        {
+          "type": "diagram",
+          "description": "A cylindrical shape viewed from top and side, showing diameter D and length L."
+        },
+        {
+          "type": "paragraph",
+          "text": "where, D = diameter of bearing"
+        },
+        {
+          "type": "paragraph",
+          "text": "L = length of bearing"
+        },
+        {
+          "type": "diagram",
+          "description": "An 'ex-' labelled diagram showing a bearing assembly with load P acting on a shaft supported by bearings."
+        },
+        {
+          "type": "paragraph",
+          "text": "* for single bearing"
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma = \\frac{P}{L \\times D}",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "* for 'n' no. of bearing"
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma = \\frac{P}{(L \\times D)n}",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "$\\sigma \\downarrow$ when $n \\uparrow$"
+        },
+        {
+          "type": "paragraph",
+          "text": "* Journal Bearing - for high load Carrying Capacity"
+        },
+        {
+          "type": "diagram",
+          "description": "A cross-section of a journal bearing showing an inner shaft and outer casing."
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Question:"
+        },
+        {
+          "type": "paragraph",
+          "text": "Crank pin of an IC engine sustains maximum load of $35 \\text{ kN}$. If the allowable bearing pressure is $7 \\text{ N/mm}^2$. Find the dimension of pin whose $L/D$ is $1.2$?"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Solution:"
+        },
+        {
+          "type": "paragraph",
+          "text": "given: $P = 35 \\text{ kN} = 35 \\times 10^3 \\text{ N}$"
+        },
+        {
+          "type": "paragraph",
+          "text": "$\\sigma = 7 \\text{ N/mm}^2 = 7 \\times 10^6 \\text{ N/m}^2$"
+        },
+        {
+          "type": "paragraph",
+          "text": "$L/D = 1.2$"
+        },
+        {
+          "type": "paragraph",
+          "text": "$L = 1.2D$"
+        }
+      ]
+    }
+  ]
+}

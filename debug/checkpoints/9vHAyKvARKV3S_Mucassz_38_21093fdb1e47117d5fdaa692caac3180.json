@@ -1,0 +1,67 @@
+{
+  "metadata": {
+    "title": "Theories of Failure",
+    "subject": "Mechanics of Materials",
+    "documentType": "lecture"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "math",
+          "latex": "\\[ \\sigma = \\frac{\\sigma_x}{2} + \\frac{1}{2} \\sqrt{\\sigma_x^2 + 4\\tau_{xy}^2} \\]",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\[ \\sigma = \\frac{35.82}{2} + \\frac{1}{2} \\sqrt{(35.82)^2 + 4(20.89)^2} \\]",
+          "display": true
+        },
+        {
+          "type": "heading",
+          "level": 1,
+          "text": "Theories Of Failure :"
+        },
+        {
+          "type": "paragraph",
+          "text": "1) Rankine Theory (Maximum Stress theory/Maximum normal stress)"
+        },
+        {
+          "type": "paragraph",
+          "text": "Max$^m$ stress $(\\sigma_1 \\text{ or } \\sigma_3 \\text{ whenever is maximum}) = \\sigma_y \\text{ yield}"
+        },
+        {
+          "type": "paragraph",
+          "text": "Avoid failure"
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_1 = \\frac{\\sigma_y}{\\text{FOS}} \\text{ (max)}",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "Failure in cylinders occurs at a point when maximum principle stress / normal stress in a biaxial stress system reaches the maximum limiting value of material strength in a simple test."
+        },
+        {
+          "type": "paragraph",
+          "text": "(2) Guest's Theory or Coulomb's theory or Maximum shear theory"
+        },
+        {
+          "type": "math",
+          "latex": "\\left( \\sigma_1 - \\sigma_2 \\right) \\text{ or } \\left( \\sigma_2 - \\sigma_3 \\right) \\text{ or } \\left( \\sigma_3 - \\sigma_1 \\right) \\left( \\text{whichever is maximum} \\right) = \\sigma_y",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "Failure on yielding occurs at a point in members when maximum shear in a biaxial stress system reaches the limiting value of shear in a simple tension test."
+        },
+        {
+          "type": "paragraph",
+          "text": "* Above theorem is applicable to Ductile material."
+        }
+      ]
+    }
+  ]
+}

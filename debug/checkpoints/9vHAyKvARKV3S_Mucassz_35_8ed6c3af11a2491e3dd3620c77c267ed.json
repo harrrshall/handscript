@@ -1,0 +1,109 @@
+{
+  "metadata": {
+    "title": "Stress Analysis Problem",
+    "subject": "Mechanics of Materials",
+    "documentType": "problem-set"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "ALLIES:-"
+        },
+        {
+          "type": "diagram",
+          "description": "A horizontal circular shaft is fixed at point A on the left. A vertical downward load of 3 kN is applied at the free end. A horizontal tensile force of 15 kN is applied to the right at the free end. A torque of 1000 Nm is also applied at the free end. The shaft has a diameter $\\phi=50$ mm. The length of the shaft from the fixed end to the free end where loads are applied is 250 mm."
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Solution:-"
+        },
+        {
+          "type": "paragraph",
+          "text": "Axial Proof 15KN = $15 \\times 10^3$ N"
+        },
+        {
+          "type": "paragraph",
+          "text": "Bending load = 3KN = $3 \\times 10^3$ N"
+        },
+        {
+          "type": "paragraph",
+          "text": "Twist = 1000 Nm"
+        },
+        {
+          "type": "paragraph",
+          "text": "= $10^3 \\times 10^3$ N mm"
+        },
+        {
+          "type": "paragraph",
+          "text": "= $10^6$ N mm"
+        },
+        {
+          "type": "paragraph",
+          "text": "Length = 250 mm"
+        },
+        {
+          "type": "paragraph",
+          "text": "d = 50 mm"
+        },
+        {
+          "type": "math",
+          "latex": "(\\sigma_{max})_A = ?",
+          "display": false
+        },
+        {
+          "type": "math",
+          "latex": "(\\sigma_{max})_B = ?",
+          "display": false
+        },
+        {
+          "type": "math",
+          "latex": "\\tau_{max} = ?",
+          "display": false
+        },
+        {
+          "type": "math",
+          "latex": "(\\sigma_{max})_A = \\sigma_{axial} + \\sigma_{bending}",
+          "display": false
+        },
+        {
+          "type": "math",
+          "latex": "(\\sigma_{max})_B = \\sigma_{axial} - \\sigma_{bending}",
+          "display": false
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_{axial} = \\frac{\\text{load}}{\\text{Area}} = \\frac{15 \\times 10^3}{\\frac{\\pi}{4}(50)^2} = 7.6433 \\text{ N/mm}^2",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "$\\sigma_{bending}$"
+        },
+        {
+          "type": "math",
+          "latex": "M = 3 \\times 10^3 \\times 250",
+          "display": false
+        },
+        {
+          "type": "math",
+          "latex": "M = \\frac{\\pi d^3}{32} \\sigma_{bending}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "M = \\frac{\\pi}{32} \\sigma d^3 \\implies 3 \\times 10^3 \\times 250 = \\frac{3.14}{32} \\times \\sigma_{bending} \\times (50)^3",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_{bending} = 61.14 \\text{ N/mm}^2",
+          "display": false
+        }
+      ]
+    }
+  ]
+}

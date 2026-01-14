@@ -1,0 +1,50 @@
+{
+  "metadata": {
+    "title": "Stress Concentration Factor",
+    "subject": "Strength of Materials",
+    "documentType": "lecture"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "math",
+          "latex": "K_t = \\frac{\\text{maximum stress}}{\\text{nominal stress at throat section}}",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "Stress concentrated where there is variation in geometry."
+        },
+        {
+          "type": "diagram",
+          "description": "A cylindrical bar with a sudden change in cross-section (notch) and a tapering bar, both illustrating areas where stress concentration occurs. An arrow points to 'stress concentration' near the notch.",
+          "label": "Stress Concentration Illustration"
+        },
+        {
+          "type": "diagram",
+          "description": "A 3D cube with a circular hole through its center, perpendicular to one face."
+        },
+        {
+          "type": "paragraph",
+          "text": "Ques: find the maximum stress induced in the following cases:"
+        },
+        {
+          "type": "diagram",
+          "description": "Two 3D cubes. The first cube is plain. The second cube has a circular hole of diameter 12 and is subjected to a 12 kN tensile force on its right face. Dimensions of the cube are indicated as 60 and 40."
+        },
+        {
+          "type": "math",
+          "latex": "K_t = \\frac{\\text{Maxm Stress}}{\\text{Nominal Stress at net section}}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\text{Nominal Stress} = \\frac{\\text{load}}{\\text{Area net}} = \\frac{12 \\times 10^3 N}{(60-12)\\times 10} \\frac{N}{\\text{mm}^2} = 25 \\times 10^6 \\text{ Pa}",
+          "display": true
+        }
+      ]
+    }
+  ]
+}

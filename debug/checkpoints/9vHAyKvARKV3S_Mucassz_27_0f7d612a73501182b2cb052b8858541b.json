@@ -1,0 +1,90 @@
+{
+  "metadata": {
+    "title": "Stress Concentration Calculations",
+    "subject": "Strength of Materials",
+    "documentType": "lecture"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "diagram",
+          "description": "A graph showing stress concentration factor ($k_t$) on the y-axis, and a ratio $a/\\omega$ on the x-axis. A curve is drawn, and a specific point corresponding to a value of $a/\\omega$ is implicitly used.",
+          "label": "Stress Concentration Factor Graph"
+        },
+        {
+          "type": "math",
+          "latex": "\\frac{a}{\\omega} = \\frac{19}{50} = 0.2",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "k_t = 2.5",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "But $k_t = \\text{Maximum Stress} / \\text{Nominal Stress at net section}$"
+        },
+        {
+          "type": "math",
+          "latex": "2.5 = \\frac{\\text{Maximum Stress}}{25 \\times 10^6}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\text{Maximum stress} = 2.5 \\times 25 \\times 10^6 \\frac{\\text{N}}{\\text{m}^2} = 6.25 \\frac{\\text{MN}}{\\text{m}^2}",
+          "display": true
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Question:"
+        },
+        {
+          "type": "diagram",
+          "description": "A stepped shaft under axial tensile load P. The shaft has a larger diameter D and a smaller diameter d, connected by a fillet with radius r. Arrows indicate the tensile load P acting on both ends.",
+          "label": "Stepped Shaft with Axial Load"
+        },
+        {
+          "type": "paragraph",
+          "text": "$P = 12 \\text{ kN}$, $D = 50 \\text{ mm}$, $d = 25 \\text{ mm}$"
+        },
+        {
+          "type": "paragraph",
+          "text": "$k_t = \\text{Maxm Stress} / \\text{Nominal stress at net section}$"
+        },
+        {
+          "type": "paragraph",
+          "text": "Nominal stress at net section = Load / Nominal area"
+        },
+        {
+          "type": "math",
+          "latex": "\\frac{12 \\times 10^3 \\text{ N}}{\\frac{\\pi d^2}{4}}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= \\frac{12 \\times 10^3}{\\frac{3.14 (25 \\times 10^{-3})^2}{4}}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= \\frac{4 \\times 12 \\times 10^3}{3.14 \\times 625 \\times 10^{-6}}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "24.45 \\text{ MPa} = \\frac{4 \\times 12 \\times 10^3}{3.14 \\times 625 \\times 10^{-6}}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= \\frac{12 \\times 10^3}{\\frac{3.14 (25 \\times 10^{-3})^2}{4}}",
+          "display": true
+        }
+      ]
+    }
+  ]
+}

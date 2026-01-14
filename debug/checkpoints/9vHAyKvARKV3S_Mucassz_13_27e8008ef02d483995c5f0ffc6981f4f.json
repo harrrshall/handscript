@@ -1,0 +1,88 @@
+{
+  "metadata": {
+    "title": "Torsional Rigidity and Shaft Design Problem",
+    "subject": "Machine Design",
+    "documentType": "problem-set"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "GJ = torsional rigidity"
+        },
+        {
+          "type": "math",
+          "latex": "\\frac{\\tau}{R} = \\frac{T}{J}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "T = \\frac{\\tau}{R} \\times J = \\frac{\\tau}{d/2} \\times \\frac{\\pi}{32} d^4 = \\frac{\\tau \\pi}{16} d^3",
+          "display": true
+        },
+        {
+          "type": "diagram",
+          "description": "Cross-section of a hollow shaft with outer diameter d_o and inner diameter d_i."
+        },
+        {
+          "type": "math",
+          "latex": "T = \\frac{\\tau}{R} \\frac{\\pi}{32} (d_o^4 - d_i^4) = \\frac{\\tau}{d_o/2} \\frac{\\pi}{32} (d_o^4 - d_i^4) = \\frac{\\tau}{16d_o} (d_o^4 - d_i^4)",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "R = d/2"
+        },
+        {
+          "type": "paragraph",
+          "text": "Q. A shaft transmitting 100 kW at 160 rpm, the maximum torque induce is 25% excess of mean. Find the diameter of shaft allowable shear is 70 MPa."
+        },
+        {
+          "type": "paragraph",
+          "text": "Solution:-"
+        },
+        {
+          "type": "paragraph",
+          "text": "Power = 100 kW = 100 × 10^3 W"
+        },
+        {
+          "type": "paragraph",
+          "text": "N = 160 rpm"
+        },
+        {
+          "type": "paragraph",
+          "text": "\\tau = 70 MPa = 70 × 10^6 Pa"
+        },
+        {
+          "type": "paragraph",
+          "text": "T_{MAX} = 25% excess"
+        },
+        {
+          "type": "paragraph",
+          "text": "Maximum T_{mean} = 0.25 T_{mean}"
+        },
+        {
+          "type": "paragraph",
+          "text": "= 1.25 T_{mean}"
+        },
+        {
+          "type": "math",
+          "latex": "P = \\frac{2 \\pi N T}{60}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "10^5 = \\frac{2 \\times 3.14 \\times 160 T_{mean}}{60}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "T_{mean} = \\frac{60 \\times 10^5}{2 \\times 3.14 \\times 160}",
+          "display": true
+        }
+      ]
+    }
+  ]
+}

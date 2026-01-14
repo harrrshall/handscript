@@ -1,0 +1,52 @@
+{
+  "metadata": {
+    "title": "Bending Stress in Strength of Materials",
+    "subject": "Strength of Materials",
+    "documentType": "lecture"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "heading",
+          "level": 1,
+          "text": "Bending Stress in Strength"
+        },
+        {
+          "type": "diagram",
+          "description": "Two diagrams are shown. The first depicts a straight rectangular beam section with external bending moments 'M' applied at both ends. The internal stress distribution is indicated, with a neutral axis and a variable 'y' representing distance from it. Labels B, E, C, D are placed on the beam's edges. The second diagram shows a rectangular beam bent into a curve, with an arrow pointing towards a central point labeled 'R', indicating the radius of curvature. Internal stress is also indicated in the bent section."
+        },
+        {
+          "type": "math",
+          "latex": "\\frac{\\sigma}{Y} = \\frac{E}{R} = \\frac{M}{I}",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "$\\sigma$ = tensile stress"
+        },
+        {
+          "type": "paragraph",
+          "text": "$Y$ = distance of fibre (extreme fibre)"
+        },
+        {
+          "type": "paragraph",
+          "text": "$E$ = modulus of elasticity"
+        },
+        {
+          "type": "paragraph",
+          "text": "$M$ = Moment (bending)"
+        },
+        {
+          "type": "paragraph",
+          "text": "$R$ = Radius of curvature"
+        },
+        {
+          "type": "paragraph",
+          "text": "$I$ = Moment of Inertia"
+        }
+      ]
+    }
+  ]
+}

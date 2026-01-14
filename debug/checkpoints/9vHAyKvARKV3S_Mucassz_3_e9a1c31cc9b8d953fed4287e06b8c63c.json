@@ -1,0 +1,52 @@
+{
+  "metadata": {
+    "title": "Shear Stress and Cotter Joints",
+    "subject": "Strength of Materials",
+    "documentType": "lecture"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "* Shear stress:- It is the ratio of tangential force to the resistive area. It denoted by $\\tau$ (tau)."
+        },
+        {
+          "type": "math",
+          "latex": "\\tau = \\frac{\\text{tangential force}}{\\text{Resisting area}}",
+          "display": true
+        },
+        {
+          "type": "diagram",
+          "description": "A diagram showing a single rivet connecting two plates in a lap joint. The rivet passes through both plates. Labels indicate 'resistive area' and 'rivate joint'."
+        },
+        {
+          "type": "diagram",
+          "description": "A diagram showing two rivets connecting three plates. The middle plate is connected to two outer plates by two rivets. Labeled '4 resistive areas'."
+        },
+        {
+          "type": "diagram",
+          "description": "An isometric view of a flat rectangular plate with a single circular hole in its center. Labeled 't = thickness'."
+        },
+        {
+          "type": "paragraph",
+          "text": "Resistive area = $2 \\pi r t$ = $\\pi D t$"
+        },
+        {
+          "type": "heading",
+          "level": 1,
+          "text": "Question :-"
+        },
+        {
+          "type": "diagram",
+          "description": "A diagram of a socket and cotter joint. A spigot with a hole passes through a socket with a matching hole. A cotter pin is inserted through the aligned holes. A force 'P = 80 KN' is applied, pulling the spigot from the socket. Labels indicate 'Pin', 'Socket', 'Spigot', and diameter 'd'."
+        },
+        {
+          "type": "paragraph",
+          "text": "For a given socket and cotter joint, find out diameter of the free end of the rod and diameter of the cotter pin when it carrying 80 KN load. If the allowable tensile stress of the rod is 100 N/mm$^2$, allowable stress of the pin is 80 N/mm$^2$."
+        }
+      ]
+    }
+  ]
+}

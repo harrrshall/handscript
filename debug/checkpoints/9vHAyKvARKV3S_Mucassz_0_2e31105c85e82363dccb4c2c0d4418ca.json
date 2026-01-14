@@ -1,0 +1,101 @@
+{
+  "metadata": {
+    "title": "Hydraulic Press Problem",
+    "subject": "Strength of Materials",
+    "documentType": "problem-set"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "Ques:- A hydraulic press exerts a load of 3.5 MN. The load is supported by two steel columns. If the shear stress is 85 MPa, modulus of elasticity is 20 kN/mm$^2$. Find the diameter of column and change in length, if the column overall length is 2.5 m."
+        },
+        {
+          "type": "heading",
+          "level": 1,
+          "text": "solution:"
+        },
+        {
+          "type": "paragraph",
+          "text": "given: load $(P) = 3.5 MN = 3.5 \\times 10^6 N$"
+        },
+        {
+          "type": "paragraph",
+          "text": "stress $(\\sigma) = 85 MPa$"
+        },
+        {
+          "type": "math",
+          "latex": "= 85 \\times 10^6 N/m^2 = 85 \\times 10^6 / 10^6 mm^2 = 85 N/mm^2",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "$E = \\text{modulus of elasticity} = 20 kN/mm^2 = 20 \\times 10^3 N/mm^2$"
+        },
+        {
+          "type": "paragraph",
+          "text": "$L = 2.5 m$"
+        },
+        {
+          "type": "paragraph",
+          "text": "Now, com. Stress = Load / Area"
+        },
+        {
+          "type": "diagram",
+          "description": "A bar loaded with force P from top, supported by three rectangular columns. Arrows indicate reaction forces at the bottom of each column. A label 'bar' is at the top, and 'Column' is near the vertical members. A second, smaller diagram shows a horizontal bar with a downward force P at its center, and two upward forces P/2 at its ends.",
+          "label": ""
+        },
+        {
+          "type": "math",
+          "latex": "\\text{Com. pfress on column} = \\frac{P/2}{\\pi/4 D^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "85 \\frac{N}{mm^2} = \\frac{3.5 \\times 10^6 N}{2 \\times \\frac{\\pi}{4} D^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "D^2 = \\frac{3.5 \\times 10^6 \\times 2}{85} mm^2",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "D = \\sqrt{\\frac{7.0 \\times 10^6}{85}} = 0.28697 \\times 10^3 mm",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= 286.97 mm",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "Let $\\delta l$ be change in length"
+        },
+        {
+          "type": "paragraph",
+          "text": "ALSO"
+        },
+        {
+          "type": "math",
+          "latex": "\\delta l = \\frac{PL}{AE} \\text{ or } \\sigma = E \\epsilon",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma = E \\times \\frac{\\delta l}{L}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\delta l = \\frac{\\sigma L}{E}",
+          "display": true
+        }
+      ]
+    }
+  ]
+}

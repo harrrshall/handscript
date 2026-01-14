@@ -1,0 +1,102 @@
+{
+  "metadata": {
+    "title": "Bending Moment and Reactions Calculation",
+    "subject": "Structural Mechanics",
+    "documentType": "problem-set"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "heading",
+          "level": 3,
+          "text": "BM at A"
+        },
+        {
+          "type": "math",
+          "latex": "M_A = 0",
+          "display": true
+        },
+        {
+          "type": "heading",
+          "level": 3,
+          "text": "BM at B"
+        },
+        {
+          "type": "math",
+          "latex": "M_B = 4000 \\times 25 \\times 10^{-3}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= 100 N-mm = 100 KN-mm",
+          "display": true
+        },
+        {
+          "type": "heading",
+          "level": 3,
+          "text": "BM at C"
+        },
+        {
+          "type": "math",
+          "latex": "M_C = 100 N = 100 kN.mm",
+          "display": true
+        },
+        {
+          "type": "heading",
+          "level": 3,
+          "text": "BM at D"
+        },
+        {
+          "type": "math",
+          "latex": "M_D = 0",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "So, No maximum bending moment"
+        },
+        {
+          "type": "diagram",
+          "description": "A beam supported at A and E. Upward reactions RA and RE are shown at A and E respectively. The beam has downward point loads: 40 kN at 400 mm from A (point B), 15 kN at 800 mm from A (point C), and 10 kN at 1200 mm from A (point D). Distances are indicated as: A to B is 400, B to C is 400, C to D is 400, and D to E is 300 (all in mm)."
+        },
+        {
+          "type": "math",
+          "latex": "R_A + R_E = 40 + (15+10)",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "R_A + R_E = 65 N",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\sum M_A = 0",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "40 \\times 400 + 15 \\times 800 + 10 \\times 1200 = R_E \\times 1500",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "16000 + 12000 + 12000 = R_E \\times 1500",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\frac{40000}{1500} = R_E",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "R_E = 26.66 kN",
+          "display": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,142 @@
+{
+  "metadata": {
+    "title": "Untitled Calculation Notes",
+    "subject": "Engineering Calculations",
+    "documentType": "other"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "$\\\\sigma_{steel}$"
+        },
+        {
+          "type": "math",
+          "latex": "50 \\times 10^3",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "-0.5 A_{cu}",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "$A_{steel}$"
+        },
+        {
+          "type": "math",
+          "latex": "50 \\times 10^7 - 0.5 \\times",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "A_{st} + A_{cu} = 312",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "A_{st} = 312.5",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "50000 = (0.5 A_{cu} + A_{st}) \\sigma_{st}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_{st} = \\frac{50000}{0.5 A_{cu} + A_{st}}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= \\frac{50000}{0.5 \\times 156.25 + 156.25}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "A_{st} + A_{cu} = 312",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= \\frac{50000}{78.125 + 156.25}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= \\frac{50000}{234.375}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_{st} = 213.33 \\frac{N}{mm^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "106.6 \\frac{N}{mm^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "A_{cu} + A_{st} = 312.5",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "& A_g = 312.5",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "A_{st} = 156.25",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "A_{cu} = 156.25",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "50000 = (0.5 A_{cu} + A_{st}) \\sigma_{st}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= (0.5 A_{cu} + 156.25) \\sigma_{st}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= (0.5 \\times 156.25 + 156.25) \\sigma_{st}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "50000 = (78.125 + 156.25) \\sigma_{st}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "50000 = (234.375) \\sigma_{st}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_{st} = \\frac{50000}{234.375} = 213.33 \\frac{N}{mm^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_{cu} = 0.5 \\times 213.33 = 106.665 \\frac{N}{mm^2}",
+          "display": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,122 @@
+{
+  "metadata": {
+    "title": "Fatigue Analysis - Soderberg Method",
+    "subject": "Machine Design",
+    "documentType": "other"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Solution: given:"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "modified soderberg"
+        },
+        {
+          "type": "math",
+          "latex": "\\frac{1}{n} = \\frac{\\sigma_m}{\\sigma_{ea}} + \\frac{k_f \\sigma_a}{\\sigma_{-1}}",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "1 ="
+        },
+        {
+          "type": "math",
+          "latex": "n \\left( \\frac{\\sigma_m}{\\sigma_{ea}} + \\frac{k_f \\sigma_a}{\\sigma_{-1}} \\right)",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "Now"
+        },
+        {
+          "type": "math",
+          "latex": "I = \\frac{\\sigma_m}{(\\sigma_{ea}/n)} + \\frac{k_f \\sigma_a}{(\\sigma_{-1}/n)}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "1 = \\frac{4.45 \\times 10^5}{d^2 (900/n)} + \\frac{1.91 \\times 10^5}{d^2 (700/n)}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "d^2 = 821.984",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "d = 5.318 \\text{ mm}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_{max} = \\text{Maximum load}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= \\frac{500 \\times 10^3}{\\pi/4 d^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= \\frac{6.36 \\times 10^5}{d^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_{min} = \\text{min load}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= \\frac{200 \\times 10^3}{\\pi/4 d^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= \\frac{2.54 \\times 10^5}{d^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_m = \\frac{\\sigma_{max} + \\sigma_{min}}{2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= \\frac{6.36 \\times 10^5}{d^2} + \\frac{2.54 \\times 10^5}{d^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= \\frac{8.90 \\times 10^5}{d^2} \\div 2 = \\frac{4.45 \\times 10^5}{d^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_a = \\frac{\\sigma_{max} - \\sigma_{min}}{2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= \\frac{6.36 \\times 10^5}{d^2} - \\frac{2.54 \\times 10^5}{d^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= \\frac{3.82 \\times 10^5}{d^2} \\div 2 = \\frac{1.91 \\times 10^5}{d^2}",
+          "display": true
+        }
+      ]
+    }
+  ]
+}

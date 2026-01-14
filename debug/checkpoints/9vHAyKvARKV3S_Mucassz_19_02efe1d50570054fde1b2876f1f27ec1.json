@@ -1,0 +1,106 @@
+{
+  "metadata": {
+    "title": "Pump Lever Shaft Analysis",
+    "subject": "Strength of Materials",
+    "documentType": "other"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "A pump lever of shaft exerts a force of 25 kN and 25 kN that act a distance of 100 mm and 300 mm from the left and right hand bearing respectively. Find the diameter of centre portion of lever. If the maximum allowable stress is 100 MPa. Take the length of lever as 950 mm."
+        },
+        {
+          "type": "paragraph",
+          "text": "Solution:"
+        },
+        {
+          "type": "diagram",
+          "description": "A horizontal beam supported by a pin support at point A on the left and a roller support at point D on the right. An upward reaction force $R_A$ acts at A. A downward force of $25 \\times 10^3$ N acts at point B. A downward force of $35 \\times 10^3$ N acts at point C. An upward reaction force $R_D$ acts at D. The distance from A to B is 100 mm. The distance from B to C is 600 mm. The distance from C to D is 200 mm. The total length from A to D is 900 mm."
+        },
+        {
+          "type": "math",
+          "latex": "M_{max} = \\frac{\\pi}{36} \\sigma d^3",
+          "display": true
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Reactions at A and D"
+        },
+        {
+          "type": "math",
+          "latex": "R_A + R_D = 25+35",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "R_A + R_D = 60",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "Moments about $R_A$"
+        },
+        {
+          "type": "math",
+          "latex": "25 \\times 100 + 35 \\times 750 = 950 R_D",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "25 \\times 150 + 35 \\times 750 = 950 R_D",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "R_D = 31.57 \\times 10^3 N",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "R_A = 28.43 \\times 10^3 N",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "BM at A"
+        },
+        {
+          "type": "math",
+          "latex": "M_A = 0",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "BM at B"
+        },
+        {
+          "type": "math",
+          "latex": "M_B = 25 \\times 150 \\times 10^3 = 3750 \\times 10^2 \\text{ Nm}",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "BM at C"
+        },
+        {
+          "type": "math",
+          "latex": "M_C = 35 \\times 10^3 \\times 750 = 26250 \\times 10^3 \\text{ Nm}",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "BM at D"
+        },
+        {
+          "type": "math",
+          "latex": "M_D = -28.42 \\times 10^3 \\times 950 = -27008.5 \\times 10^3 \\text{ Nm}",
+          "display": true
+        }
+      ]
+    }
+  ]
+}

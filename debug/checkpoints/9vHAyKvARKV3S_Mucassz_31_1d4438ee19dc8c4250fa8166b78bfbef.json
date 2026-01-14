@@ -1,0 +1,103 @@
+{
+  "metadata": {
+    "title": "Stress Concentration Factor Calculation",
+    "subject": "Strength of Materials",
+    "documentType": "problem-set"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "Solution (2)"
+        },
+        {
+          "type": "diagram",
+          "description": "A stepped shaft is shown with a larger diameter D=45mm on the left, transitioning to a smaller diameter d=30mm on the right via a fillet of radius r=6mm. The shaft is subjected to a tensile load P=10kN.",
+          "label": "Stepped Shaft Geometry"
+        },
+        {
+          "type": "math",
+          "latex": "P = 10 \\text{ kN} = 10^4 \\text{ N}",
+          "display": false
+        },
+        {
+          "type": "math",
+          "latex": "D = 45 \\text{ mm}",
+          "display": false
+        },
+        {
+          "type": "math",
+          "latex": "d = 30 \\text{ mm}",
+          "display": false
+        },
+        {
+          "type": "math",
+          "latex": "r = 6 \\text{ mm}",
+          "display": false
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_{max} = ?",
+          "display": false
+        },
+        {
+          "type": "math",
+          "latex": "\\frac{r}{d} = \\frac{6}{30} = \\frac{1}{5} = 0.2",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\frac{D}{d} = \\frac{45}{30} = \\frac{3}{2} = 1.5",
+          "display": true
+        },
+        {
+          "type": "diagram",
+          "description": "A graph plotting the stress concentration factor (kt) against the ratio r/d, with curves typically representing different D/d ratios. A point is indicated for reading kt based on r/d = 0.2 and D/d = 1.5.",
+          "label": "Stress Concentration Factor Chart"
+        },
+        {
+          "type": "paragraph",
+          "text": "So, $k_t = 1.45$"
+        },
+        {
+          "type": "paragraph",
+          "text": "Nominal Stress at net section = Load / Nominal Cross Section"
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_{nom} = \\frac{P}{\\frac{\\pi d^2}{4}} = \\frac{10^4 \\text{ N}}{\\frac{3.14 \\times (30)^2}{4} \\text{ mm}^2} = \\frac{4 \\times 10^4 \\text{ N}}{3.14 \\times (30)^2 \\text{ mm}^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= 14.154 \\frac{\\text{N}}{\\text{mm}^2}",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "or $14.154 \\frac{\\text{MN}}{\\text{m}^2}$"
+        },
+        {
+          "type": "paragraph",
+          "text": "Maximum Stress = $k_t \\times$ Nominal stress at net section"
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_{max} = 1.45 \\times 14.154 \\frac{\\text{N}}{\\text{mm}^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= 20.5233 \\frac{\\text{N}}{\\text{mm}^2}",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "or $20.5233 \\frac{\\text{MN}}{\\text{m}^2}$"
+        }
+      ]
+    }
+  ]
+}

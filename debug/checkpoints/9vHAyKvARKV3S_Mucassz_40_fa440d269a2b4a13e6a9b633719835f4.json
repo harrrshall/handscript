@@ -1,0 +1,171 @@
+{
+  "metadata": {
+    "title": "Design of Machine Components: Principle Stress and Shear Theory",
+    "subject": "Strength of Materials",
+    "documentType": "lecture"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "Solution:"
+        },
+        {
+          "type": "paragraph",
+          "text": "tensile load = $10 \\text{KN}$"
+        },
+        {
+          "type": "paragraph",
+          "text": "shear load = $5 \\text{KN}$"
+        },
+        {
+          "type": "diagram",
+          "description": "A diagram showing a cylindrical member subjected to an axial tensile load and a transverse shear load. The tensile load is shown as 10KN acting upwards on the top block, and a shear load of 5KN acting horizontally on the same block. A diameter 'd' is indicated."
+        },
+        {
+          "type": "paragraph",
+          "text": "Given: $\\nu = 0.3$ (poisson ratio)"
+        },
+        {
+          "type": "paragraph",
+          "text": "Allowable tensile stress, $\\sigma_{allowable} = 100 \\text{ N/mm}^2$"
+        },
+        {
+          "type": "paragraph",
+          "text": "Calculations for normal and shear stresses:"
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_t = \\frac{\\text{Load}}{\\text{Area}} = \\frac{10 \\times 10^3}{\\frac{\\pi}{4}d^2} = \\frac{12732.4}{d^2} \\text{ N/mm}^2",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\tau = \\frac{\\text{Load}}{\\text{Area}} = \\frac{5 \\times 10^3}{\\frac{\\pi}{4}d^2} = \\frac{6367.42}{d^2} \\text{ N/mm}^2",
+          "display": true
+        },
+        {
+          "type": "heading",
+          "level": 1,
+          "text": "Maximum Principle Stress Theory"
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_1 = \\frac{\\sigma_t}{2} + \\sqrt{\\left(\\frac{\\sigma_t}{2}\\right)^2 + \\tau^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "100 = \\frac{6366.2}{d^2} + \\sqrt{\\left(\\frac{6366.2}{d^2}\\right)^2 + \\left(\\frac{6367.42}{d^2}\\right)^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "100 = \\frac{6366.2}{d^2} + \\frac{1}{d^2}\\sqrt{6366.2^2 + 6367.42^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "100 = \\frac{6366.2}{d^2} + \\frac{1}{d^2}\\sqrt{40528247.44 + 40543947.6}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "100 = \\frac{6366.2}{d^2} + \\frac{9005.44}{d^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "100 = \\frac{15371.64}{d^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "d^2 = \\frac{15371.64}{100}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "d = \\sqrt{\\frac{15371.64}{100}}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "d = 12.398 \\text{ mm}",
+          "display": true
+        },
+        {
+          "type": "heading",
+          "level": 1,
+          "text": "Maximum Shear Theory"
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_1 = \\frac{\\sigma_t}{2} + \\sqrt{\\left(\\frac{\\sigma_t}{2}\\right)^2 + \\tau^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_1 = \\frac{6366.8}{d^2} + \\frac{9005.44}{d^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_2 = \\frac{\\sigma_t}{2} - \\sqrt{\\left(\\frac{\\sigma_t}{2}\\right)^2 + \\tau^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma_2 = \\frac{6366.8}{d^2} - \\frac{9005.44}{d^2} = -\\frac{2638.64}{d^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\tau_{max} = \\frac{\\sigma_1 - \\sigma_2}{2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\tau_{max} = \\frac{1}{2} \\left( \\frac{15372.24}{d^2} - \\left(-\\frac{2638.64}{d^2}\\right) \\right)",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\tau_{max} = \\frac{1}{2} \\left( \\frac{15372.24 + 2638.64}{d^2} \\right)",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\tau_{max} = \\frac{1}{2} \\left( \\frac{18010.88}{d^2} \\right) = \\frac{9005.44}{d^2}",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "Now,"
+        },
+        {
+          "type": "math",
+          "latex": "100 = \\frac{18010.88}{d^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "d^2 = \\frac{18010.88}{100}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "d = \\sqrt{\\frac{18010.88}{100}}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "d = 13.420 \\text{ mm}",
+          "display": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+{
+  "metadata": {
+    "title": "Problem Solution",
+    "subject": "Mechanics of Materials",
+    "documentType": "problem-set"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Solution ①"
+        },
+        {
+          "type": "paragraph",
+          "text": "Width = 15 mm"
+        },
+        {
+          "type": "paragraph",
+          "text": "thickness (t) = 10 mm"
+        },
+        {
+          "type": "paragraph",
+          "text": "d = diameter of eccentric hole = 10 mm"
+        },
+        {
+          "type": "paragraph",
+          "text": "P = tensile load = 10 kN"
+        },
+        {
+          "type": "paragraph",
+          "text": "e = distance of eccentric hole = 20 mm"
+        },
+        {
+          "type": "diagram",
+          "description": "A rectangular plate with width 15mm and thickness 10mm (labeled 'b'). It features an eccentric circular hole of diameter 10mm (indicated by 'I 10'). A tensile load 'P' is applied, with eccentricity 'e' measuring 20mm from the centerline to the load's action line. A dimension 'c = 15' is shown from the centerline to the plate edge. A separate representation shows the width and thickness dimensions."
+        },
+        {
+          "type": "math",
+          "latex": "\\sigma = \\frac{P}{A}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\frac{D}{C} = \\frac{5}{15} = \\frac{1}{3} = 0.333",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\frac{e}{c} = \\frac{20}{15} = 2",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "Nominal stress $\\sigma = \\frac{\\text{Load}}{\\text{Nominal section}}$"
+        },
+        {
+          "type": "math",
+          "latex": "= 10 \\times 10^3 N",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "k_t = \\frac{\\text{Stress maximum}}{\\text{Nominal stress at net section}} = \\frac{\\sigma_{max}}{\\sigma_e}",
+          "display": true
+        },
+        {
+          "type": "container",
+          "kind": "note",
+          "content": "But $k_t = 2.04$"
+        },
+        {
+          "type": "paragraph",
+          "text": "Stress maximum"
+        },
+        {
+          "type": "math",
+          "latex": "= k_t \\times \\text{nominal stress}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= 2.4 \\times",
+          "display": true
+        }
+      ]
+    }
+  ]
+}

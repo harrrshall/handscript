@@ -7,8 +7,8 @@ import util from 'util';
 // fetch is global in Node 18+
 
 const execPromise = util.promisify(exec);
-const BASE_URL = 'http://localhost:3000';
-const PDF_PATH = '/home/cybernovas/Desktop/2026/handscript/mdnotes.pdf';
+const BASE_URL = 'http://127.0.0.1:3000';
+const PDF_PATH = path.join(process.cwd(), 'mdnotes.pdf');
 const TEMP_IMG_DIR = path.join(process.cwd(), 'scripts', 'temp_images_batch');
 
 async function main() {

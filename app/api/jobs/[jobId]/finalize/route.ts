@@ -47,7 +47,7 @@ export async function POST(
         }
 
         // 2. Process pages in PARALLEL (Robust Isolation)
-        const modalEndpoint = process.env.MODAL_TYPST_ENDPOINT;
+        const modalEndpoint = process.env.MODAL_PDF_ENDPOINT;
 
         const renderPromises = results.map(async (val, i) => {
             let pageHtml = "";
@@ -84,6 +84,18 @@ export async function POST(
                     throw new Error(`Modal status ${response.status}: ${errorText}`);
                 }
                 const data = await response.json();
+
+                // DEBUG LOGGING
+                console.log(JSON.stringify({
+                    event: 'ModalResponseDebug',
+                    jobId,
+                    pageIndex: i,
+                    status: response.status,
+                    hasPdf: !!data.pdf,
+                    hasError: !!data.error,
+                    timestamp: new Date().toISOString()
+                }));
+
                 if (data.error) throw new Error(data.error);
                 if (!data.pdf) throw new Error("No PDF returned");
 

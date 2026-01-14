@@ -1,0 +1,95 @@
+{
+  "metadata": {
+    "title": "Material Properties and Stress Calculations",
+    "subject": "Engineering Mechanics",
+    "documentType": "other"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "math",
+          "latex": "\\text{yield stress} = \\frac{3.5 \\times 10^3 N}{113.09 m^2}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\text{Ultimate stress} = \\frac{6.01 \\times 10^3 N}{113.09 m^2}",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "% Increase in length = Final length - initial length / initial length"
+        },
+        {
+          "type": "math",
+          "latex": "= \\frac{80 - 60}{60} = \\frac{20}{60} = \\frac{1}{3} \\times 100",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= 33.33\\%",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "% Reduction of area = Initial area - final area / Initial area x 100"
+        },
+        {
+          "type": "math",
+          "latex": "= \\frac{113.09 - 38.48}{113.09} \\times 100",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= \\frac{74.61}{113.09} \\times 100",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= 0.6597 \\times 100",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= 65.97\\%",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "Factor of safety = FOS = Maximum stress / Allowable stress"
+        },
+        {
+          "type": "math",
+          "latex": "= \\frac{\\sigma_u}{\\sigma_a}",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "Table for FOS (Factor of Safety) values:"
+        },
+        {
+          "type": "paragraph",
+          "text": "Category | Material | Steady | Live | Shock"
+        },
+        {
+          "type": "paragraph",
+          "text": "Brittle | CI | 5 | 8 | 15"
+        },
+        {
+          "type": "paragraph",
+          "text": "Ductile | MS | 3 | 4 | 8"
+        },
+        {
+          "type": "paragraph",
+          "text": "Ductile | Rubber | 10 | 12 | 15"
+        },
+        {
+          "type": "paragraph",
+          "text": "FOS > 1"
+        }
+      ]
+    }
+  ]
+}

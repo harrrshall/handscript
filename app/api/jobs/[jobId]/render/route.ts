@@ -39,11 +39,11 @@ export async function POST(
         let pdfUrl: string;
 
         // Call Modal.com endpoint if configured
-        const modalEndpoint = process.env.MODAL_TYPST_ENDPOINT;
+        const modalEndpoint = process.env.MODAL_PDF_ENDPOINT;
 
         if (modalEndpoint) {
             try {
-                console.log('Using Modal.com for PDF generation...');
+                console.log('Using Modal.com (Puppeteer) for PDF generation...');
                 // Wrap full document
                 const fullHtml = wrapWithTemplate(assembledHtml);
 
@@ -78,8 +78,8 @@ export async function POST(
                 throw modalError;
             }
         } else {
-            console.log('MODAL_TYPST_ENDPOINT not set.');
-            throw new Error('MODAL_TYPST_ENDPOINT not set');
+            console.log('MODAL_PDF_ENDPOINT not set.');
+            throw new Error('MODAL_PDF_ENDPOINT not set');
         }
 
         // Update Job

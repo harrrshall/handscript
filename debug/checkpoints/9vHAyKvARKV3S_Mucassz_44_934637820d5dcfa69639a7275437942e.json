@@ -1,0 +1,23 @@
+{
+  "metadata": {
+    "title": "Shaft Design Problem",
+    "subject": "Machine Design",
+    "documentType": "problem-set"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Question"
+        },
+        {
+          "type": "paragraph",
+          "text": "A shaft of cylindrical steel yield strength $700 \\text{ MPa}$ is subject to static consisting of bending Moment $10 \\text{ kNm}$ and twisting Moment $20 \\text{ kNm}$. Find the shaft diameter using maximum principle and maximum shear theory. FOS $= 2$ and Young's modulus $210 \\text{ GPa}$ $v = 0.25$."
+        }
+      ]
+    }
+  ]
+}

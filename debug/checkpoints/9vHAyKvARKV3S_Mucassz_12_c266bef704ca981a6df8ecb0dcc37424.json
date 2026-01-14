@@ -1,0 +1,104 @@
+{
+  "metadata": {
+    "title": "Strength of Materials - Torsion & Poisson's Ratio",
+    "subject": "Strength of Materials",
+    "documentType": "lecture"
+  },
+  "pages": [
+    {
+      "pageIndex": 0,
+      "content": [
+        {
+          "type": "math",
+          "latex": "P_{st} = \\sigma_{st} A_{st}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= 213.33 \\times 156.25",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= 33332.8125 N",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= 33.332 kN",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "P_{cu} = \\sigma_{cu} A_{cu}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= 106.66 \\times 156.25",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= 16666.67 N",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "= 16.66 kN",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "($\\mu$)"
+        },
+        {
+          "type": "paragraph",
+          "text": "Poisson's Ratio :- It is Ratio of lateral strain to linear strain"
+        },
+        {
+          "type": "math",
+          "latex": "\\mu \\ll 1",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\mu = \\frac{\\text{lateral strain / transverse strain}}{\\text{linear strain / axial strain}}",
+          "display": true
+        },
+        {
+          "type": "math",
+          "latex": "\\frac{\\frac{\\delta y}{\\delta x}}{\\tau}",
+          "display": true
+        },
+        {
+          "type": "paragraph",
+          "text": "Torsional load :-"
+        },
+        {
+          "type": "diagram",
+          "description": "A cylindrical shaft shown in a 3D view, with circular arrows at both ends indicating twisting or torsional load.",
+          "label": "Torsional Shaft"
+        },
+        {
+          "type": "math",
+          "latex": "\\frac{T}{J} = \\frac{\\tau}{R} = \\frac{G \\theta}{L}",
+          "display": true
+        },
+        {
+          "type": "list",
+          "items": [
+            "T = torque N.mm",
+            "J = polar moment of inertia (mm^4)",
+            "$\\tau$ = shear stress N/mm^2",
+            "R = extreme fibre distance",
+            "G = modulus of rigidity",
+            "$\\theta$ = angle of twist",
+            "L = length of shaft / bar"
+          ],
+          "ordered": false
+        }
+      ]
+    }
+  ]
+}
