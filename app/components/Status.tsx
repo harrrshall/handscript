@@ -59,19 +59,19 @@ export default function Status({ jobId, images, onComplete, onError, onReset }: 
             processingStarted.current = true;
 
             const processBatches = async () => {
-                const BATCH_SIZE = 1; // Reduced to 1 to avoid Vercel 4.5MB payload limit
-                const batches: { start: number, imgs: string[] }[] = [];
+                const BATCH_SIZE = 20; // Increased to 20 thanks to Signed URLs & B2
+                const batches: { start: number, keys: string[] }[] = [];
 
+                // 'images' prop now contains B2 keys based on Upload.tsx changes
                 for (let i = 0; i < images.length; i += BATCH_SIZE) {
                     batches.push({
                         start: i,
-                        imgs: images.slice(i, i + BATCH_SIZE)
+                        keys: images.slice(i, i + BATCH_SIZE)
                     });
                 }
 
                 // Browser limit is roughly 6-10 per domain.
-                // With batch size 5, 5 concurrent requests = 25 pages processing simultaneously.
-                const CONCURRENCY_LIMIT = 5; // Safe limit for batches of requests
+                const CONCURRENCY_LIMIT = 5;
 
                 // Helper for concurrency
                 const pool = async () => {
@@ -85,7 +85,7 @@ export default function Status({ jobId, images, onComplete, onError, onReset }: 
                             body: JSON.stringify({
                                 jobId,
                                 startPageIndex: batch.start,
-                                images: batch.imgs
+                                keys: batch.keys
                             })
                         }).then(r => {
                             if (!r.ok) throw new Error(`Batch failed: ${r.statusText}`);

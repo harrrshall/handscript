@@ -31,13 +31,13 @@ export default function Upload({ onJobCreated, onError }: UploadProps) {
                 throw new Error('PDF too large. Max 200 pages allowed.');
             }
 
-            const images: string[] = [];
+            const keys: string[] = [];
             const BATCH_SIZE = 5;
 
-            // Extract pages
+            // Extract and upload pages
             for (let i = 1; i <= totalPages; i += BATCH_SIZE) {
                 const batchEnd = Math.min(i + BATCH_SIZE - 1, totalPages);
-                setStatusText(`Extracting pages ${i}-${batchEnd} of ${totalPages}...`);
+                setStatusText(`Processing & Uploading pages ${i}-${batchEnd} of ${totalPages}...`);
 
                 const batchPromises = [];
                 for (let p = i; p <= batchEnd; p++) {
@@ -54,36 +54,64 @@ export default function Upload({ onJobCreated, onError }: UploadProps) {
                         // @ts-ignore
                         await page.render({ canvasContext: context, viewport }).promise;
 
-                        // Get base64 (remove data:image/png;base64, prefix)
-                        const base64 = canvas.toDataURL('image/png').split(',')[1];
-                        return { index: p - 1, data: base64 };
+                        return new Promise<{ index: number, key: string }>((resolve, reject) => {
+                            canvas.toBlob(async (blob) => {
+                                if (!blob) {
+                                    reject(new Error('Canvas to Blob failed'));
+                                    return;
+                                }
+                                try {
+                                    const key = `uploads/${Date.now()}-${Math.random().toString(36).substring(7)}-${p}.png`;
+
+                                    // Get presigned URL
+                                    const presignRes = await fetch('/api/get-upload-url', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ key, contentType: 'image/png' })
+                                    });
+
+                                    if (!presignRes.ok) throw new Error('Failed to get upload URL');
+                                    const { uploadUrl } = await presignRes.json();
+
+                                    // Upload to B2
+                                    const uploadRes = await fetch(uploadUrl, {
+                                        method: 'PUT',
+                                        body: blob,
+                                        headers: { 'Content-Type': 'image/png' }
+                                    });
+
+                                    if (!uploadRes.ok) throw new Error('Failed to upload to storage');
+                                    resolve({ index: p - 1, key });
+                                } catch (e) {
+                                    reject(e);
+                                }
+                            }, 'image/png');
+                        });
                     })());
                 }
 
                 const batchResults = await Promise.all(batchPromises);
-                batchResults.forEach(r => images[r.index] = r.data);
+                batchResults.forEach(r => keys[r.index] = r.key);
 
                 setProgress(Math.round((batchEnd / totalPages) * 100));
             }
 
             setStatusText('Creating job...');
-            // Create job with placeholders for manifest
-            const manifestPlaceholders = new Array(totalPages).fill('pending-upload');
 
             const res = await fetch('/api/jobs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     pageCount: totalPages,
-                    pageManifest: manifestPlaceholders
+                    pageManifest: keys
                 })
             });
 
             if (!res.ok) throw new Error('Failed to create job');
             const data = await res.json();
 
-            // Pass images to parent for processing
-            onJobCreated(data.jobId, images);
+            // Pass keys to parent for processing
+            onJobCreated(data.jobId, keys);
 
         } catch (err: any) {
             console.error(err);

@@ -3,11 +3,23 @@ import { redis } from '@/lib/redis';
 import { generateBatchNotes } from '@/lib/gemini';
 import { renderToHtml } from '@/lib/formatting';
 import { z } from 'zod';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { BatchResponse, Page } from '@/lib/schema';
+
+const s3Client = new S3Client({
+    endpoint: process.env.B2_ENDPOINT?.startsWith('http') ? process.env.B2_ENDPOINT : `https://${process.env.B2_ENDPOINT}`,
+    region: process.env.B2_REGION,
+    credentials: {
+        accessKeyId: process.env.B2_KEY_ID!,
+        secretAccessKey: process.env.B2_APPLICATION_KEY!,
+    },
+});
 
 const processBatchSchema = z.object({
     jobId: z.string(),
     startPageIndex: z.number().min(0),
-    images: z.array(z.string()).min(1).max(10), // Limit reasonable batch size
+    keys: z.array(z.string()).min(1), // Changed from images to keys
 });
 
 export async function POST(request: Request) {
@@ -16,46 +28,52 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { jobId, startPageIndex, images } = processBatchSchema.parse(body);
+        const { jobId, startPageIndex, keys } = processBatchSchema.parse(body);
         jobIdDebug = jobId;
 
         console.log(JSON.stringify({
             event: 'BatchProcessingStart',
             jobId,
             startPageIndex,
-            batchSize: images.length,
+            batchSize: keys.length,
             timestamp: new Date().toISOString()
         }));
 
-        // Call Gemini with batch of images
-        let batchResponse;
+        // Generate signed URLs for Gemini
+        const signedUrls = await Promise.all(keys.map(async (key) => {
+            const command = new GetObjectCommand({
+                Bucket: process.env.B2_BUCKET_NAME,
+                Key: key,
+            });
+            return getSignedUrl(s3Client, command, { expiresIn: 3600 });
+        }));
 
-        // CHECKPOINTING LOGIC (For debugging/cost-saving)
+        // Call Gemini with signed URLs
+        let batchResponse: BatchResponse;
+
+        // CHECKPOINTING LOGIC
         const fs = await import('fs');
         const path = await import('path');
         const crypto = await import('crypto');
 
-        // Generate a simple hash of the input images to serve as a cache key
-        const inputHash = crypto.createHash('md5').update(JSON.stringify(images)).digest('hex');
+        // Hash based on keys (reliable identifier)
+        const inputHash = crypto.createHash('md5').update(JSON.stringify(keys)).digest('hex');
         const checkpointDir = path.join(process.cwd(), 'debug', 'checkpoints');
         const checkpointFile = path.join(checkpointDir, `${jobId}_${startPageIndex}_${inputHash}.json`);
 
         try {
-            // Check if checkpoint exists
             if (fs.existsSync(checkpointFile)) {
                 console.log(`[Checkpoint] Loading Gemini response from ${checkpointFile}`);
                 const cachedData = fs.readFileSync(checkpointFile, 'utf-8');
-                batchResponse = JSON.parse(cachedData);
+                batchResponse = JSON.parse(cachedData) as BatchResponse;
             } else {
                 console.log(`[Checkpoint] No cache found, calling Gemini...`);
-                batchResponse = await generateBatchNotes(images);
+                batchResponse = await generateBatchNotes(signedUrls);
 
-                // Save checkpoint
                 if (!fs.existsSync(checkpointDir)) {
                     fs.mkdirSync(checkpointDir, { recursive: true });
                 }
                 fs.writeFileSync(checkpointFile, JSON.stringify(batchResponse, null, 2));
-                console.log(`[Checkpoint] Saved response to ${checkpointFile}`);
             }
 
         } catch (error) {
@@ -68,47 +86,27 @@ export async function POST(request: Request) {
             }));
 
             // Mark pages as failed
-            const failedIndices = images.map((_, i) => startPageIndex + i);
+            const failedIndices = keys.map((_, i) => startPageIndex + i);
             await redis.lpush(`job:${jobId}:failed`, ...failedIndices);
             return NextResponse.json({ error: 'Gemini generation failed' }, { status: 500 });
         }
 
-        // Process the structured response into HTML pages
-        // Initialize with error placeholders to ensure strict 1:1 mapping
-        const processedPages: string[] = new Array(images.length).fill(
+        // Process the structured response into HTML
+        const processedPages: string[] = new Array(keys.length).fill(
             "<p>[UNCLEAR: Page processing failed or index out of bounds]</p>"
         );
 
-        // Map responses to their verified slots
-        // We rely on the model correctly using 'pageIndex' 0..N-1
-        batchResponse.pages.forEach((page) => {
-            if (page.pageIndex >= 0 && page.pageIndex < images.length) {
-                // Construct IR for this page
+        batchResponse.pages.forEach((page: Page) => {
+            if (page.pageIndex >= 0 && page.pageIndex < keys.length) {
                 const pageIR = {
                     metadata: batchResponse.metadata,
                     content: page.content
                 };
-                // Render to HTML using the formatting layer
                 processedPages[page.pageIndex] = renderToHtml(pageIR);
-            } else {
-                console.warn(`Gemini returned invalid pageIndex: ${page.pageIndex}`);
             }
         });
 
-        // Validate count (implied by array length, but check for filled slots)
-        const filledCount = processedPages.filter(p => !p.includes("[UNCLEAR")).length;
-        if (filledCount !== images.length) {
-            console.warn(JSON.stringify({
-                event: 'PageCountMismatch',
-                jobId,
-                startPageIndex,
-                expected: images.length,
-                received: filledCount,
-                timestamp: new Date().toISOString()
-            }));
-        }
-
-        // Prepare MSET object for Redis
+        // Store results in Redis
         const msetObj: Record<string, string> = {};
         processedPages.forEach((html, index) => {
             const pageIndex = startPageIndex + index;
@@ -118,23 +116,22 @@ export async function POST(request: Request) {
             });
         });
 
-        // Store results and increment progress
         await redis.mset(msetObj);
-        await redis.incrby(`job:${jobId}:completed`, images.length);
+        await redis.incrby(`job:${jobId}:completed`, keys.length);
 
         const duration = Date.now() - startTime;
         console.log(JSON.stringify({
             event: 'BatchProcessingComplete',
             jobId,
             startPageIndex,
-            processedCount: images.length,
+            processedCount: keys.length,
             durationMs: duration,
             timestamp: new Date().toISOString()
         }));
 
         return NextResponse.json({
             success: true,
-            processedCount: images.length
+            processedCount: keys.length
         });
 
     } catch (error) {
@@ -142,7 +139,6 @@ export async function POST(request: Request) {
             event: 'BatchProcessingError',
             jobId: jobIdDebug,
             error: String(error),
-            stack: error instanceof Error ? error.stack : undefined,
             timestamp: new Date().toISOString()
         }));
 

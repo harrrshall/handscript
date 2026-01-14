@@ -117,23 +117,10 @@ export async function generateBatchNotes(imageUrls: string[]): Promise<BatchResp
         // Let's assume `images` are base64 strings for safety if they are from client?
         // Process-batch received `images: z.array(z.string())`.
 
-        const imageParts = await Promise.all(imageUrls.map(async (img) => {
-            if (img.startsWith('http')) {
-                const resp = await fetch(img);
-                const buffer = await resp.arrayBuffer();
-                return {
-                    inlineData: {
-                        data: Buffer.from(buffer).toString('base64'),
-                        mimeType: 'image/png' // or detect
-                    }
-                };
-            } else {
-                return {
-                    inlineData: {
-                        data: img, // assume base64
-                        mimeType: 'image/png'
-                    }
-                };
+        const imageParts = imageUrls.map(url => ({
+            fileData: {
+                mimeType: 'image/webp',
+                fileUri: url
             }
         }));
 
