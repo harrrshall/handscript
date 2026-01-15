@@ -1,16 +1,15 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { BatchResponseSchema, BatchResponse } from './schema';
+import { env } from './env';
+import { withRetry, withTimeout } from './utils';
+import { logger, metrics } from './logger';
 
-if (!process.env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY must be defined');
-}
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
 
 // IMPORTANT: Gemini 2.0 does NOT support external URLs
 // Must use 2.5+ or 1.5 models. current: gemini-2.5-flash
-const ACTIVE_MODEL_NAME = 'gemini-1.5-flash';
+const ACTIVE_MODEL_NAME = 'gemini-2.5-flash';
 
 function cleanSchema(schema: any): any {
     if (typeof schema !== 'object' || schema === null) return schema;
@@ -85,36 +84,49 @@ export async function generateBatchNotes(signedUrls: string[]): Promise<BatchRes
             },
         }));
 
-        console.log(
-            JSON.stringify({
-                event: "GeminiRequest",
+        logger.info("GeminiRequest", {
+            metadata: {
                 method: "fileUri",
                 imageCount: signedUrls.length,
-                timestamp: new Date().toISOString(),
-            })
+            }
+        });
+
+        const startTime = Date.now();
+
+        const result = await withRetry(
+            () => withTimeout(
+                geminiModel.generateContent([
+                    SYSTEM_PROMPT,
+                    ...imageParts
+                ]),
+                25000,
+                "Gemini request timed out"
+            ),
+            {
+                maxRetries: 3,
+                baseDelayMs: 1000,
+                onRetry: (attempt, err) => console.warn(`[Gemini] Retry ${attempt} after error: ${err.message}`)
+            }
         );
 
-        const result = await geminiModel.generateContent([
-            SYSTEM_PROMPT,
-            ...imageParts
-        ]);
+        const duration = Date.now() - startTime;
+        await metrics.increment("gemini_requests");
+        await metrics.recordLatency("gemini_processing", duration);
 
         const responseText = result.response.text();
         const data = JSON.parse(responseText);
         return BatchResponseSchema.parse(data);
 
     } catch (error: any) {
-        console.error(
-            JSON.stringify({
-                event: "GeminiError",
-                error: error.message,
-                // Check for specific URL fetch errors
+        await metrics.increment("gemini_errors");
+        logger.error("GeminiError", {
+            error: error.message,
+            metadata: {
                 isUrlError:
                     error.message?.includes("url_retrieval") ||
                     error.message?.includes("Invalid file_uri"),
-                timestamp: new Date().toISOString(),
-            })
-        );
+            }
+        });
         throw error;
     }
 }

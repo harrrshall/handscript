@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Upload from '@/app/components/Upload';
 import Status from '@/app/components/Status';
 import Header from '@/app/components/Header';
 
 export type AppState = 'upload' | 'processing' | 'complete' | 'error';
+
+const STORAGE_KEY = 'handscript_active_job';
 
 export default function Home() {
   const [jobId, setJobId] = useState<string | null>(null);
@@ -13,6 +15,43 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [images, setImages] = useState<string[]>([]);
   const [email, setEmail] = useState<string | undefined>(undefined);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.jobId && parsed.state !== 'complete' && parsed.state !== 'upload') {
+          setJobId(parsed.jobId);
+          setState(parsed.state);
+          setImages(parsed.images || []);
+          setEmail(parsed.email);
+        }
+      } catch (e) {
+        console.error('Failed to parse saved session', e);
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    }
+    setIsLoaded(true);
+  }, []);
+
+  // Save to localStorage on change
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    if (state === 'upload' || state === 'complete') {
+      localStorage.removeItem(STORAGE_KEY);
+    } else {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        jobId,
+        state,
+        images,
+        email
+      }));
+    }
+  }, [jobId, state, images, email, isLoaded]);
 
   const handleJobCreated = (id: string, extractedImages: string[], userEmail?: string) => {
     setJobId(id);
@@ -36,7 +75,16 @@ export default function Home() {
     setEmail(undefined);
     setState('upload');
     setError(null);
+    localStorage.removeItem(STORAGE_KEY);
   };
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen p-8 pb-20 sm:p-20 font-[family-name:var(--font-geist-sans)] flex items-center justify-center">
+        <div className="animate-pulse text-gray-400">Loading HandScript...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen p-8 pb-20 sm:p-20 font-[family-name:var(--font-geist-sans)]">

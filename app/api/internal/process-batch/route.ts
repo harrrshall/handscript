@@ -9,15 +9,18 @@ import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { BatchResponse, Page } from "@/lib/schema";
 import { publishToQStash, queueErrorEmail } from "@/lib/queue";
+import { env } from "@/lib/env";
+import { getBaseUrl } from "@/lib/utils";
+import { logger, metrics } from "@/lib/logger";
 
 const s3Client = new S3Client({
-    endpoint: process.env.B2_ENDPOINT?.startsWith("http")
-        ? process.env.B2_ENDPOINT
-        : `https://${process.env.B2_ENDPOINT}`,
-    region: process.env.B2_REGION,
+    endpoint: env.B2_ENDPOINT.startsWith("http")
+        ? env.B2_ENDPOINT
+        : `https://${env.B2_ENDPOINT}`,
+    region: env.B2_REGION,
     credentials: {
-        accessKeyId: process.env.B2_KEY_ID!,
-        secretAccessKey: process.env.B2_APPLICATION_KEY!,
+        accessKeyId: env.B2_KEY_ID,
+        secretAccessKey: env.B2_APPLICATION_KEY,
     },
 });
 
@@ -27,14 +30,7 @@ const processBatchSchema = z.object({
     manifest: z.array(z.string()).min(1),
 });
 
-async function logToRedis(jobId: string, msg: string) {
-    try {
-        const logMsg = `${new Date().toISOString()} ${msg}`;
-        await redis.lpush(`job:${jobId}:logs`, logMsg);
-        await redis.ltrim(`job:${jobId}:logs`, 0, 49); // Keep last 50 logs
-        await redis.expire(`job:${jobId}:logs`, 24 * 60 * 60); // 24h expiry
-    } catch (e) { console.error("Redis log failed", e); }
-}
+// Local logToRedis removed in favor of centralized logger.logToRedis
 
 async function handler(request: NextRequest) {
     const startTime = Date.now();
@@ -46,37 +42,30 @@ async function handler(request: NextRequest) {
         body = await request.json();
         const { jobId, batchIndex, manifest } = processBatchSchema.parse(body);
 
-        const BATCH_SIZE = 1; // Critical fix for Vercel 10s timeout
+        const BATCH_SIZE = 5;
         const start = batchIndex * BATCH_SIZE;
         const end = Math.min(start + BATCH_SIZE, manifest.length);
         const keys = manifest.slice(start, end);
 
-        await logToRedis(jobId, `Starting batch ${batchIndex + 1}/${Math.ceil(manifest.length / BATCH_SIZE)} (Pages ${start}-${end - 1})`);
+        await logger.logToRedis(jobId, `Starting batch ${batchIndex + 1}/${Math.ceil(manifest.length / BATCH_SIZE)} (Pages ${start}-${end - 1})`);
 
         if (keys.length === 0) {
-            const baseUrl = process.env.VERCEL_URL
-                ? `https://${process.env.VERCEL_URL}`
-                : "http://localhost:3000";
-
+            const baseUrl = getBaseUrl();
             await publishToQStash(`${baseUrl}/api/jobs/${jobId}/finalize`, {});
             return NextResponse.json({ success: true, status: "complete" });
         }
 
-        console.log(
-            JSON.stringify({
-                event: "BatchProcessingStart",
-                jobId,
-                batchIndex,
-                keyCount: keys.length,
-                timestamp: new Date().toISOString(),
-            })
-        );
+        logger.info("BatchProcessingStart", {
+            jobId,
+            batchIndex,
+            metadata: { keyCount: keys.length }
+        });
 
         // Generate signed URLs
         const signedUrls = await Promise.all(
             keys.map(async (key) => {
                 const command = new GetObjectCommand({
-                    Bucket: process.env.B2_BUCKET_NAME,
+                    Bucket: env.B2_BUCKET_NAME,
                     Key: key,
                 });
                 return getSignedUrl(s3Client, command, { expiresIn: 7200 }); // 2 hours
@@ -87,18 +76,16 @@ async function handler(request: NextRequest) {
         let batchResponse: BatchResponse | null = null;
         try {
             batchResponse = await generateBatchNotes(signedUrls);
-            await logToRedis(jobId, `Gemini success for batch ${batchIndex}`);
+            await logger.logToRedis(jobId, `Gemini success for batch ${batchIndex}`);
         } catch (geminiError: any) {
-            await logToRedis(jobId, `Gemini error for batch ${batchIndex}: ${geminiError.message}`);
-            console.error(JSON.stringify({
-                event: 'GeminiGenerationFailed',
+            await logger.logToRedis(jobId, `Gemini error for batch ${batchIndex}: ${geminiError.message}`);
+            logger.error('GeminiGenerationFailed', {
                 jobId,
                 batchIndex,
                 error: geminiError.message,
                 stack: geminiError.stack,
-                retryCount,
-                timestamp: new Date().toISOString()
-            }));
+                metadata: { retryCount }
+            });
             throw geminiError; // Let QStash retry
         }
 
@@ -131,15 +118,13 @@ async function handler(request: NextRequest) {
 
         await redis.mset(msetObj);
         await redis.incrby(`job:${jobId}:completed`, keys.length);
-        await logToRedis(jobId, `Completed batch ${batchIndex}. Progress: ${start + keys.length}/${manifest.length}`);
+        await logger.logToRedis(jobId, `Completed batch ${batchIndex}. Progress: ${start + keys.length}/${manifest.length}`);
 
         // Trigger Next Batch recursively
         const nextBatchIndex = batchIndex + 1;
         const totalBatches = Math.ceil(manifest.length / BATCH_SIZE);
 
-        const baseUrl = process.env.VERCEL_URL
-            ? `https://${process.env.VERCEL_URL}`
-            : "http://localhost:3000";
+        const baseUrl = getBaseUrl();
 
         if (nextBatchIndex < totalBatches) {
             await publishToQStash(`${baseUrl}/api/internal/process-batch`, {
@@ -148,11 +133,13 @@ async function handler(request: NextRequest) {
                 manifest
             });
         } else {
-            await logToRedis(jobId, "All batches sent to Gemini. Finalizing...");
+            await logger.logToRedis(jobId, "All batches sent to Gemini. Finalizing...");
             await publishToQStash(`${baseUrl}/api/jobs/${jobId}/finalize`, {});
         }
 
         const duration = Date.now() - startTime;
+        await metrics.increment("batches_processed");
+        await metrics.recordLatency("batch_processing", duration);
         return NextResponse.json({
             success: true,
             processed: keys.length,
@@ -160,18 +147,16 @@ async function handler(request: NextRequest) {
         });
 
     } catch (error: any) {
-        console.error(JSON.stringify({
-            event: 'BatchProcessingFailed',
+        logger.error('BatchProcessingFailed', {
             jobId: body?.jobId || 'unknown',
             batchIndex: body?.batchIndex,
             error: error.message,
             stack: error.stack,
-            retryCount,
-            timestamp: new Date().toISOString()
-        }));
+            metadata: { retryCount }
+        });
 
         if (body?.jobId) {
-            await logToRedis(body.jobId, `Batch ${body.batchIndex} failed: ${error.message}`);
+            await logger.logToRedis(body.jobId, `Batch ${body.batchIndex} failed: ${error.message}`);
         }
 
         if (retryCount >= maxRetries && body?.jobId) {

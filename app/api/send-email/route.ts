@@ -3,8 +3,10 @@ import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
 import { Resend } from "resend";
 import { redis } from "@/lib/redis";
 import { getDownloadUrl } from "@/lib/s3";
+import { logger, metrics } from "@/lib/logger";
+import { env } from "@/lib/env";
 
-const resend = new Resend(process.env.RESEND_API_KEY || "re_mock");
+const resend = new Resend(env.RESEND_API_KEY || "re_mock");
 
 async function handler(request: NextRequest) {
   try {
@@ -26,13 +28,13 @@ async function handler(request: NextRequest) {
 
     // Send email via Resend
     // If API key is not valid, this will fail.
-    if (!process.env.RESEND_API_KEY) {
-      console.log("Mocking Email Send", JSON.stringify({ to: email, jobId }));
+    if (!env.RESEND_API_KEY) {
+      logger.info("MockingEmailSend", { jobId, metadata: { to: email } });
       return NextResponse.json({ success: true, emailId: "mock_id" });
     }
 
     const { data, error } = await resend.emails.send({
-      from: process.env.EMAIL_FROM || "HandScript <onboarding@resend.dev>",
+      from: env.EMAIL_FROM || "HandScript <onboarding@resend.dev>",
       to: email,
       subject: "Your HandScript PDF is Ready! 📄",
       html: `
@@ -82,15 +84,11 @@ async function handler(request: NextRequest) {
     });
 
     if (error) {
-      console.error(
-        JSON.stringify({
-          event: "EmailSendFailed",
-          jobId,
-          email,
-          error: error.message,
-          timestamp: new Date().toISOString(),
-        })
-      );
+      logger.error("EmailSendFailed", {
+        jobId,
+        metadata: { email, error: error.message }
+      });
+      await metrics.increment("email_errors");
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -103,19 +101,15 @@ async function handler(request: NextRequest) {
       await redis.set(`job:${jobId}`, job);
     }
 
-    console.log(
-      JSON.stringify({
-        event: "EmailSent",
-        jobId,
-        email,
-        emailId: data?.id,
-        timestamp: new Date().toISOString(),
-      })
-    );
+    logger.info("EmailSent", {
+      jobId,
+      metadata: { email, emailId: data?.id }
+    });
+    await metrics.increment("emails_sent");
 
     return NextResponse.json({ success: true, emailId: data?.id });
-  } catch (error) {
-    console.error("Email handler error:", error);
+  } catch (error: any) {
+    logger.error("EmailHandlerError", { error: error.message, stack: error.stack });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -132,7 +126,7 @@ if (process.env.NODE_ENV === 'production' && process.env.QSTASH_CURRENT_SIGNING_
   // In production this should be a critical error or handled via env check at start
   // For build contexts without secrets, we skip verification
   if (process.env.NODE_ENV === 'production') {
-    console.warn("WARNING: QSTASH_CURRENT_SIGNING_KEY missing in production. Endpoint is unsecured.");
+    logger.warn("QStashSigningKeyMissing", { metadata: { env: 'production' } });
   }
 }
 

@@ -1,6 +1,6 @@
-
 import { S3Client, PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { env } from './env';
 
 const cleanToken = (token: string | undefined) => {
     if (!token) return undefined;
@@ -10,17 +10,17 @@ const cleanToken = (token: string | undefined) => {
 };
 
 const s3Client = new S3Client({
-    endpoint: process.env.B2_ENDPOINT?.startsWith("http")
-        ? process.env.B2_ENDPOINT
-        : `https://${process.env.B2_ENDPOINT}`,
-    region: process.env.B2_REGION,
+    endpoint: env.B2_ENDPOINT.startsWith("http")
+        ? env.B2_ENDPOINT
+        : `https://${env.B2_ENDPOINT}`,
+    region: env.B2_REGION,
     credentials: {
-        accessKeyId: cleanToken(process.env.B2_KEY_ID)!,
-        secretAccessKey: cleanToken(process.env.B2_APPLICATION_KEY)!,
+        accessKeyId: cleanToken(env.B2_KEY_ID)!,
+        secretAccessKey: cleanToken(env.B2_APPLICATION_KEY)!,
     },
 });
 
-const BUCKET_NAME = process.env.B2_BUCKET_NAME!;
+const BUCKET_NAME = env.B2_BUCKET_NAME;
 
 export async function uploadFile(
     key: string,
@@ -46,7 +46,7 @@ export async function deleteFile(keyOrUrl: string | string[]) {
 
     // Handle URLs by extracting keys (if someone passes a full URL by mistake)
     // For private buckets, we primarily expect keys now.
-    const endpointHost = process.env.B2_ENDPOINT?.replace("https://", "");
+    const endpointHost = env.B2_ENDPOINT.replace("https://", "");
     const baseUrl = `https://${BUCKET_NAME}.${endpointHost}/`;
 
     const parsedKeys = keys.map(k => {

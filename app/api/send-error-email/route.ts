@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
 import { Resend } from "resend";
 import { redis } from "@/lib/redis";
+import { logger, metrics } from "@/lib/logger";
+import { env } from "@/lib/env";
+import { getBaseUrl } from "@/lib/utils";
 
-const resend = new Resend(process.env.RESEND_API_KEY || "re_mock");
+const resend = new Resend(env.RESEND_API_KEY || "re_mock");
 
 async function handler(request: NextRequest) {
   try {
@@ -17,16 +20,15 @@ async function handler(request: NextRequest) {
       );
     }
 
-    if (!process.env.RESEND_API_KEY) {
-      console.log(
-        "Mocking Error Email Send",
-        JSON.stringify({ to: email, jobId })
-      );
+    if (!env.RESEND_API_KEY) {
+      logger.info("MockingErrorEmailSend", { jobId, metadata: { to: email } });
       return NextResponse.json({ success: true, emailId: "mock_id" });
     }
 
+    const baseUrl = getBaseUrl();
+
     const { data, error } = await resend.emails.send({
-      from: process.env.EMAIL_FROM || "HandScript <onboarding@resend.dev>",
+      from: env.EMAIL_FROM || "HandScript <onboarding@resend.dev>",
       to: email,
       subject: "Your HandScript Conversion Encountered an Issue ⚠️",
       html: `
@@ -57,18 +59,13 @@ async function handler(request: NextRequest) {
             
             <div class="error-box">
               <strong>What happened:</strong><br/>
-              ${errorMessage ||
-        "An unexpected error occurred during processing."
-        }
+              ${errorMessage || "An unexpected error occurred during processing."}
             </div>
             
             <p>Don't worry – this can happen occasionally due to complex handwriting, image quality issues, or temporary service disruptions.</p>
             
             <div style="text-align: center;">
-              <a href="${process.env.VERCEL_URL
-          ? `https://${process.env.VERCEL_URL}`
-          : "https://handscript.app"
-        }" class="button">Try Again</a>
+              <a href="${baseUrl}" class="button">Try Again</a>
             </div>
             
             <p style="margin-top: 30px; font-size: 14px;">
@@ -91,15 +88,11 @@ async function handler(request: NextRequest) {
     });
 
     if (error) {
-      console.error(
-        JSON.stringify({
-          event: "ErrorEmailSendFailed",
-          jobId,
-          email,
-          error: error.message,
-          timestamp: new Date().toISOString(),
-        })
-      );
+      logger.error("ErrorEmailSendFailed", {
+        jobId,
+        metadata: { email, error: error.message }
+      });
+      await metrics.increment("email_errors");
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -111,19 +104,15 @@ async function handler(request: NextRequest) {
       await redis.set(`job:${jobId}`, job);
     }
 
-    console.log(
-      JSON.stringify({
-        event: "ErrorEmailSent",
-        jobId,
-        email,
-        emailId: data?.id,
-        timestamp: new Date().toISOString(),
-      })
-    );
+    logger.info("ErrorEmailSent", {
+      jobId,
+      metadata: { email, emailId: data?.id }
+    });
+    await metrics.increment("error_emails_sent");
 
     return NextResponse.json({ success: true, emailId: data?.id });
   } catch (error: any) {
-    console.error("Error email handler error:", error);
+    logger.error("ErrorEmailHandlerError", { error: error.message, stack: error.stack });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -133,8 +122,12 @@ async function handler(request: NextRequest) {
 
 // Wrap with QStash signature verification
 let POST_HANDLER: any = handler;
-if (process.env.NODE_ENV === 'production' && process.env.QSTASH_CURRENT_SIGNING_KEY) {
+if (process.env.NODE_ENV === 'production' && env.QSTASH_CURRENT_SIGNING_KEY) {
   POST_HANDLER = verifySignatureAppRouter(handler);
+} else {
+  if (process.env.NODE_ENV === 'production') {
+    logger.warn("QStashSigningKeyMissing", { metadata: { env: 'production', route: 'error-email' } });
+  }
 }
 
 export const POST = POST_HANDLER;

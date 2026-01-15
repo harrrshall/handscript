@@ -10,6 +10,8 @@ const createJobSchema = z.object({
 });
 
 import { publishToQStash } from "@/lib/queue";
+import { logger, metrics } from '@/lib/logger';
+import { getBaseUrl } from '@/lib/utils';
 
 export type JobStatus = 'pending' | 'processing' | 'assembling' | 'complete' | 'failed';
 
@@ -69,9 +71,7 @@ export async function POST(request: Request) {
         await redis.expire(`job:${jobId}`, 30 * 24 * 60 * 60);
 
         // TRIGGER BACKGROUND PROCESSING via QStash
-        const baseUrl = process.env.VERCEL_URL
-            ? `https://${process.env.VERCEL_URL}`
-            : "http://localhost:3000";
+        const baseUrl = getBaseUrl();
 
         try {
             const result = await publishToQStash(`${baseUrl}/api/internal/process-batch`, {
@@ -79,15 +79,13 @@ export async function POST(request: Request) {
                 batchIndex: 0,
                 manifest: pageManifest
             });
-            console.log(JSON.stringify({
-                event: 'JobBackgroundStart',
+            logger.info('JobBackgroundStart', {
                 jobId,
-                qStashResult: result,
-                targetUrl: `${baseUrl}/api/internal/process-batch`,
-                timestamp: new Date().toISOString()
-            }));
-        } catch (queueError) {
-            console.error("Failed to trigger background processing", queueError);
+                metadata: { qStashResult: result, targetUrl: `${baseUrl}/api/internal/process-batch` }
+            });
+            await metrics.increment("jobs_created");
+        } catch (queueError: any) {
+            logger.error("JobBackgroundTriggerFailed", { jobId, error: queueError.message });
             // We still return success, client will poll and see it's pending/stuck
             // or retry manually if we built that UI.
             // Crucially, if email was provided, this failure is critical for 'fire-and-forget'.
@@ -98,8 +96,8 @@ export async function POST(request: Request) {
             status: 'processing',
             estimatedTime: pageCount * 2, // Rough estimate
         });
-    } catch (error) {
-        console.error('Job creation failed:', error);
+    } catch (error: any) {
+        logger.error('JobCreationError', { error: error.message, stack: error.stack });
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: (error as any).errors }, { status: 400 });
         }
