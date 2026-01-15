@@ -334,8 +334,18 @@ export async function POST(
                         count: inputFiles.length,
                     });
                 }
+
+                // Delete page cache from Redis
+                const pageKeys = Array.from(
+                    { length: job.totalPages },
+                    (_, i) => `job:${jobId}:page:${i}`
+                );
+                if (pageKeys.length > 0) await redis.del(...pageKeys);
+                await redis.del(`job:${jobId}:completed`);
+                await redis.del(`job:${jobId}:logs`);
+
             } catch (cleanupError) {
-                logger.error('InputCleanupFailed', {
+                logger.error('CleanupFailed', {
                     jobId,
                     error: String(cleanupError),
                 });

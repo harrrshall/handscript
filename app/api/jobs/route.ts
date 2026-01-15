@@ -13,6 +13,42 @@ import { publishToQStash } from "@/lib/queue";
 import { logger, metrics } from '@/lib/logger';
 import { getBaseUrl } from '@/lib/utils';
 
+// Opportunistic recovery for stale jobs (replaces cron)
+async function opportunisticRecovery() {
+    try {
+        // Only run 10% of the time to avoid overhead
+        if (Math.random() > 0.1) return;
+
+        const STALE_THRESHOLD_MS = 2 * 60 * 60 * 1000; // 2 hours
+        const now = Date.now();
+
+        // Scan for a small batch of potentially stale jobs
+        const [_, keys] = await redis.scan('0', { match: 'job:*', count: 20 });
+
+        for (const key of keys) {
+            // Skip non-job data keys
+            if (key.includes(':logs') || key.includes(':page:') || key.includes(':completed')) continue;
+
+            const job: any = await redis.get(key);
+            if (!job || typeof job !== 'object') continue;
+
+            const isStale = (job.status === 'processing' || job.status === 'assembling') &&
+                (now - job.updatedAt > STALE_THRESHOLD_MS);
+
+            if (isStale) {
+                job.status = 'failed';
+                job.error = 'Job timed out after 2 hours of inactivity.';
+                job.updatedAt = now;
+                await redis.set(key, job);
+                logger.info('OpportunisticRecovery', { jobId: job.id, metadata: { lastStatus: job.status } });
+            }
+        }
+    } catch (e: any) {
+        // Silent fail - this is opportunistic
+        logger.error('OpportunisticRecoveryFailed', { error: e.message });
+    }
+}
+
 export type JobStatus = 'pending' | 'processing' | 'assembling' | 'complete' | 'failed';
 
 export interface Job {
@@ -34,6 +70,9 @@ export interface Job {
 }
 
 export async function POST(request: Request) {
+    // Opportunistic cleanup (non-blocking)
+    opportunisticRecovery().catch(() => { });
+
     try {
         const body = await request.json();
         const { pageCount, pageManifest, email } = createJobSchema.parse(body);
