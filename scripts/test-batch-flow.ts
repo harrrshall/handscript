@@ -1,19 +1,20 @@
 
 
+import 'dotenv/config';
 import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 import util from 'util';
-// fetch is global in Node 18+
+import { uploadFile, deleteFile } from '../lib/s3';
 
 const execPromise = util.promisify(exec);
-const BASE_URL = 'http://127.0.0.1:3000';
+const BASE_URL = 'http://localhost:3000';
 const PDF_PATH = path.join(process.cwd(), 'mdnotes.pdf');
 const TEMP_IMG_DIR = path.join(process.cwd(), 'scripts', 'temp_images_batch');
 
 async function main() {
     const startTime = Date.now();
-    console.log('Starting Batch Flow E2E Test...');
+    console.log('Starting Batch Flow E2E Test (B2 Integration)...');
 
     // 0. Prepare temp dir
     if (fs.existsSync(TEMP_IMG_DIR)) {
@@ -21,37 +22,63 @@ async function main() {
     }
     fs.mkdirSync(TEMP_IMG_DIR, { recursive: true });
 
-    // 1. Convert PDF to PNGs using pdftoppm (Simulating client side cleanup/processing)
-    // Scale 1.5 logic: -r 150 = 1.5 * 72dpi? Standard PDF is 72dpi. 
-    // -r 150 is approx scale 2.0 (150/72 = 2.08). 
-    // Scale 1.5 would be -r 108. Let's use -r 110 for approx scale 1.5.
-    console.log('Converting PDF to images (Simulating client extraction)...');
-    await execPromise(`pdftoppm -png -r 110 "${PDF_PATH}" image`, { cwd: TEMP_IMG_DIR });
+    // 1. Convert PDF to PNGs or Create Dummy (Simulating client side cleanup/processing)
+    let files: string[] = [];
 
-    const files = fs.readdirSync(TEMP_IMG_DIR).filter(f => f.endsWith('.png')).sort((a, b) => {
-        // Sort numerically: image-1.png, image-2.png etc.
-        const numA = parseInt(a.match(/\d+/)?.[0] || '0');
-        const numB = parseInt(b.match(/\d+/)?.[0] || '0');
-        return numA - numB;
-    });
-    console.log(`Converted ${files.length} pages.`);
+    if (fs.existsSync(PDF_PATH)) {
+        console.log('Converting PDF to images (Simulating client extraction)...');
+        // Check for pdftoppm
+        try {
+            await execPromise('pdftoppm -v');
+            await execPromise(`pdftoppm -png -r 110 "${PDF_PATH}" image`, { cwd: TEMP_IMG_DIR });
 
-    const images: string[] = [];
+            files = fs.readdirSync(TEMP_IMG_DIR).filter(f => f.endsWith('.png')).sort((a, b) => {
+                const numA = parseInt(a.match(/\d+/)?.[0] || '0');
+                const numB = parseInt(b.match(/\d+/)?.[0] || '0');
+                return numA - numB;
+            });
+        } catch (e) {
+            console.warn("pdftoppm not found or failed, using dummy images.");
+        }
+    }
+
+    if (files.length === 0) {
+        console.log("Using dummy images...");
+        // Create 3 dummy images
+        for (let i = 0; i < 3; i++) {
+            const filename = `dummy-${i + 1}.png`;
+            // 5x5 red pixel
+            const buffer = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==', 'base64');
+            fs.writeFileSync(path.join(TEMP_IMG_DIR, filename), buffer);
+            files.push(filename);
+        }
+    }
+
+    console.log(`Prepared ${files.length} images.`);
+
+    // 2. Upload Images to B2
+    console.log('presigned URL upload simulation (Direct B2 Upload via test script)...');
+    const b2Keys: string[] = [];
+
     for (const file of files) {
         const filePath = path.join(TEMP_IMG_DIR, file);
         const buffer = fs.readFileSync(filePath);
-        images.push(buffer.toString('base64'));
+        const key = `uploads/test-batch/${Date.now()}-${file}`;
+        console.log(`Uploading ${file} to ${key}...`);
+        await uploadFile(key, buffer, 'image/png');
+        b2Keys.push(key);
     }
+    console.log('All images uploaded to B2.');
 
-    // 2. Create Job
+
+    // 3. Create Job
     console.log('Creating Job...');
     const jobRes = await fetch(`${BASE_URL}/api/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            pageCount: images.length,
-            // Placeholder manifest
-            pageManifest: new Array(images.length).fill('pending-upload')
+            pageCount: b2Keys.length,
+            pageManifest: b2Keys
         })
     });
 
@@ -60,26 +87,24 @@ async function main() {
     const jobId = jobData.jobId;
     console.log('Job created:', jobId);
 
-    // 3. Process Batches (Simulating Status.tsx logic)
+    // 4. Process Batches
     console.log('Processing batches...');
 
-    const BATCH_SIZE = 1;
+    const BATCH_SIZE = 5; // Increased batch size as we send keys
     const batches = [];
-    for (let i = 0; i < images.length; i += BATCH_SIZE) {
+    for (let i = 0; i < b2Keys.length; i += BATCH_SIZE) {
         batches.push({
             start: i,
-            imgs: images.slice(i, i + BATCH_SIZE)
+            keys: b2Keys.slice(i, i + BATCH_SIZE)
         });
     }
 
-    // Process batches with limited concurrency to avoid overwhelming local dev server
-    const CONCURRENCY_LIMIT = 10;
+    const CONCURRENCY_LIMIT = 5;
     const results = [];
     const executing = new Set();
 
     for (const batch of batches) {
         const p = (async () => {
-            const batchIdx = batch.start / BATCH_SIZE; // Approx index
             const start = Date.now();
             console.log(`Sending batch at index ${batch.start}...`);
 
@@ -89,7 +114,7 @@ async function main() {
                 body: JSON.stringify({
                     jobId,
                     startPageIndex: batch.start,
-                    images: batch.imgs
+                    keys: batch.keys
                 })
             });
 
@@ -118,7 +143,7 @@ async function main() {
     await Promise.all(results);
     console.log('All batches processed.');
 
-    // 4. Finalize
+    // 5. Finalize
     console.log('Finalizing (Assembly + Render)...');
     const finalizeStart = Date.now();
     const finalizeRes = await fetch(`${BASE_URL}/api/jobs/${jobId}/finalize`, {
@@ -135,8 +160,14 @@ async function main() {
     console.log(`Finalize complete in ${finalizeDuration.toFixed(2)}s`);
     console.log('Final PDF URL:', finalizeData.pdfUrl);
 
-    // 5. Cleanup temp
-    // fs.rmSync(TEMP_IMG_DIR, { recursive: true, force: true });
+    // 6. Cleanup B2 Uploads
+    console.log("Cleaning up B2 inputs...");
+    try {
+        await deleteFile(b2Keys);
+        console.log("Input images deleted from B2.");
+    } catch (e) {
+        console.error("Failed to cleanup B2 inputs:", e);
+    }
 
     const totalDuration = (Date.now() - startTime) / 1000;
     console.log('Batch Flow Test PASSED!');

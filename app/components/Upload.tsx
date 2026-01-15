@@ -16,9 +16,22 @@ export default function Upload({ onJobCreated, onError }: UploadProps) {
     const [progress, setProgress] = useState(0);
     const [statusText, setStatusText] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [email, setEmail] = useState("");
+    const [emailError, setEmailError] = useState("");
+
+    const validateEmail = (email: string) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    };
 
     const processFile = async (file: File) => {
+        if (!validateEmail(email)) {
+            setEmailError("Please enter a valid email address");
+            return;
+        }
+
         setIsProcessing(true);
+        // ... rest of logic
         setProgress(0);
         setStatusText('Loading PDF...');
 
@@ -103,7 +116,8 @@ export default function Upload({ onJobCreated, onError }: UploadProps) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     pageCount: totalPages,
-                    pageManifest: keys
+                    pageManifest: keys,
+                    email: email,
                 })
             });
 
@@ -139,6 +153,24 @@ export default function Upload({ onJobCreated, onError }: UploadProps) {
                     </div>
                     <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">Upload PDF</h3>
                     <p className="mt-1 text-sm text-gray-500">Up to 200 pages</p>
+
+                    <div className="mt-6 w-full max-w-xs text-left">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Email for delivery
+                        </label>
+                        <input
+                            type="email"
+                            value={email}
+                            onChange={(e) => {
+                                setEmail(e.target.value);
+                                if (emailError) setEmailError("");
+                            }}
+                            placeholder="your@email.com"
+                            className={`w-full px-4 py-2 rounded-lg border ${emailError ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none`}
+                        />
+                        {emailError && <p className="text-xs text-red-500 mt-1">{emailError}</p>}
+                    </div>
+
                     <input
                         type="file"
                         ref={fileInputRef}
@@ -150,8 +182,14 @@ export default function Upload({ onJobCreated, onError }: UploadProps) {
                         }}
                     />
                     <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="mt-6 px-6 py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg font-medium hover:opacity-90 transition-opacity"
+                        onClick={() => {
+                            if (!validateEmail(email)) {
+                                setEmailError("Email is required");
+                                return;
+                            }
+                            fileInputRef.current?.click();
+                        }}
+                        className="mt-4 px-6 py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg font-medium hover:opacity-90 transition-opacity"
                     >
                         Select File
                     </button>

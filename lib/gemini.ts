@@ -8,16 +8,9 @@ if (!process.env.GEMINI_API_KEY) {
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// Use gemini-2.0-flash or pro as they support structured output well.
-// gemini-1.5-pro-latest also supports it.
-// User's original code used 'gemini-2.5-flash'. Assuming it supports it.
-const MODEL_NAME = 'gemini-2.5-flash'; // upgrading to ensure schema support, or use user's preference if it works. 
-// User mentioned gemini-3-flash in history? Let's stick to a known good model for schema or existing one.
-// Original file said 'gemini-2.5-flash'. 
-// I'll stick to 'gemini-1.5-pro' or 'gemini-1.5-flash' for robust JSON support, or 'gemini-2.0-flash-exp'
-// Let's safe bet on 'gemini-1.5-pro' or try the one in the file if it works.
-// The file had 'gemini-2.5-flash'. I will trust the user has access to it.
-const ACTIVE_MODEL_NAME = 'gemini-2.5-flash'; // Using strict stable model for JSON
+// IMPORTANT: Gemini 2.0 does NOT support external URLs
+// Must use 2.5+ or 1.5 models. current: gemini-2.5-flash
+const ACTIVE_MODEL_NAME = 'gemini-2.5-flash';
 
 function cleanSchema(schema: any): any {
     if (typeof schema !== 'object' || schema === null) return schema;
@@ -73,29 +66,31 @@ TRANSCRIPTION RULES:
 `;
 
 /**
- * Generates structured notes from a batch of images.
- * @param imageUrls List of image URLs (or base64 strings if modified, but assuming URLs/Globs)
+ * Generates structured notes from a batch of images using External URLs.
+ * Gemini fetches images directly - no bandwidth through Vercel!
+ *
+ * @param signedUrls Pre-signed URLs to images in B2 (must be valid for processing duration)
  * @returns Parsed BatchResponse object
  */
-export async function generateBatchNotes(imageUrls: string[]): Promise<BatchResponse> {
+export async function generateBatchNotes(signedUrls: string[]): Promise<BatchResponse> {
     try {
-        // Fetch all images concurrently
-        // Note: This does add load to Vercel, but needed for Gemini API interaction without File API.
-        const imageBuffers = await Promise.all(imageUrls.map(async (url) => {
-            const res = await fetch(url);
-            if (!res.ok) throw new Error(`Failed to fetch image ${url}: ${res.statusText}`);
-            return {
-                buffer: Buffer.from(await res.arrayBuffer()),
-                mimeType: res.headers.get('content-type') || 'image/png' // Use actual mime if available, else default
-            };
+        // OPTIMIZED: Use fileData with fileUri instead of inlineData
+        // Gemini fetches directly from B2, bypassing Vercel bandwidth
+        const imageParts = signedUrls.map((url) => ({
+            fileData: {
+                fileUri: url,
+                mimeType: "image/png",
+            },
         }));
 
-        const imageParts = imageBuffers.map(({ buffer, mimeType }) => ({
-            inlineData: {
-                data: buffer.toString('base64'),
-                mimeType
-            }
-        }));
+        console.log(
+            JSON.stringify({
+                event: "GeminiRequest",
+                method: "fileUri",
+                imageCount: signedUrls.length,
+                timestamp: new Date().toISOString(),
+            })
+        );
 
         const result = await geminiModel.generateContent([
             SYSTEM_PROMPT,
@@ -106,8 +101,18 @@ export async function generateBatchNotes(imageUrls: string[]): Promise<BatchResp
         const data = JSON.parse(responseText);
         return BatchResponseSchema.parse(data);
 
-    } catch (error) {
-        console.error("Gemini Structured Generation Error:", error);
+    } catch (error: any) {
+        console.error(
+            JSON.stringify({
+                event: "GeminiError",
+                error: error.message,
+                // Check for specific URL fetch errors
+                isUrlError:
+                    error.message?.includes("url_retrieval") ||
+                    error.message?.includes("Invalid file_uri"),
+                timestamp: new Date().toISOString(),
+            })
+        );
         throw error;
     }
 }

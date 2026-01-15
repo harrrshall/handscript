@@ -41,6 +41,10 @@ export async function GET(
             },
             finalPdfUrl: job.finalPdfUrl,
             error: job.error,
+        }, {
+            headers: {
+                'Cache-Control': 's-maxage=1, stale-while-revalidate=2'
+            }
         });
     } catch (error) {
         console.error('Status check failed:', error);

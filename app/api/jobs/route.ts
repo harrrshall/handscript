@@ -6,6 +6,7 @@ import { z } from 'zod';
 const createJobSchema = z.object({
     pageCount: z.number().min(1).max(200),
     pageManifest: z.array(z.string()).min(1),
+    email: z.string().email().optional(),
 });
 
 export type JobStatus = 'pending' | 'processing' | 'assembling' | 'complete' | 'failed';
@@ -22,12 +23,16 @@ export interface Job {
     blobPrefix: string;
     finalPdfUrl?: string;
     error?: string;
+    email?: string;
+    emailStatus?: "pending" | "sent" | "failed" | "queued" | "queue_failed";
+    emailSentAt?: number;
+    emailId?: string;
 }
 
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { pageCount, pageManifest } = createJobSchema.parse(body);
+        const { pageCount, pageManifest, email } = createJobSchema.parse(body);
 
         if (pageManifest.length !== pageCount) {
             return NextResponse.json(
@@ -51,6 +56,7 @@ export async function POST(request: Request) {
             failedPages: [],
             pageManifest,
             blobPrefix: `jobs/${jobId}`,
+            email,
         };
 
         // Override status to 'processing' immediately as client will start polling/processing

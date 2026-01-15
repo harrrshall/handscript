@@ -1,0 +1,139 @@
+import { NextRequest, NextResponse } from "next/server";
+import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
+import { Resend } from "resend";
+import { redis } from "@/lib/redis";
+import { getDownloadUrl } from "@/lib/s3";
+
+const resend = new Resend(process.env.RESEND_API_KEY || "re_mock");
+
+async function handler(request: NextRequest) {
+    try {
+        const body = await request.json();
+        const { jobId, email, pdfUrl, pdfKey } = body;
+
+        // Validate required fields
+        if (!jobId || !email) {
+            return NextResponse.json(
+                { error: "Missing required fields" },
+                { status: 400 }
+            );
+        }
+
+        // Get fresh presigned URL (in case original expired)
+        const freshPdfUrl = pdfKey
+            ? await getDownloadUrl(pdfKey, 86400, "handscript-notes.pdf") // 24 hour expiry
+            : pdfUrl;
+
+        // Send email via Resend
+        // If API key is not valid, this will fail.
+        if (!process.env.RESEND_API_KEY) {
+            console.log("Mocking Email Send", JSON.stringify({ to: email, jobId }));
+            return NextResponse.json({ success: true, emailId: "mock_id" });
+        }
+
+        const { data, error } = await resend.emails.send({
+            from: process.env.EMAIL_FROM || "HandScript <noreply@handscript.com>",
+            to: email,
+            subject: "Your HandScript PDF is Ready! 📄",
+            html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+            .container { max-width: 600px; margin: 0 auto; padding: 40px 20px; }
+            .header { text-align: center; margin-bottom: 30px; }
+            .logo { width: 48px; height: 48px; background: #000; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 24px; font-weight: bold; }
+            h1 { font-size: 24px; margin: 20px 0 10px; }
+            p { margin: 0 0 20px; color: #666; }
+            .button { display: inline-block; background: #000; color: #fff !important; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; }
+            .button:hover { background: #333; }
+            .note { background: #f5f5f5; padding: 16px; border-radius: 8px; font-size: 14px; color: #666; margin-top: 30px; }
+            .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #999; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">H</div>
+              <h1>Your PDF is Ready!</h1>
+              <p>Great news! Your handwritten notes have been successfully converted to a beautifully formatted PDF document.</p>
+            </div>
+            
+            <div style="text-align: center;">
+              <a href="${freshPdfUrl}" class="button">Download Your PDF</a>
+            </div>
+            
+            <div class="note">
+              <strong>⏰ Important:</strong> This download link expires in 24 hours. 
+              If you need to download the file again after it expires, you'll need to process your notes again.
+            </div>
+            
+            <div class="footer">
+              <p>Job ID: ${jobId}</p>
+              <p>© 2026 HandScript. Powered by Gemini AI.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+        });
+
+        if (error) {
+            console.error(
+                JSON.stringify({
+                    event: "EmailSendFailed",
+                    jobId,
+                    email,
+                    error: error.message,
+                    timestamp: new Date().toISOString(),
+                })
+            );
+            return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+
+        // Update job with email status
+        const job: any = await redis.get(`job:${jobId}`);
+        if (job) {
+            job.emailStatus = "sent";
+            job.emailSentAt = Date.now();
+            job.emailId = data?.id;
+            await redis.set(`job:${jobId}`, job);
+        }
+
+        console.log(
+            JSON.stringify({
+                event: "EmailSent",
+                jobId,
+                email,
+                emailId: data?.id,
+                timestamp: new Date().toISOString(),
+            })
+        );
+
+        return NextResponse.json({ success: true, emailId: data?.id });
+    } catch (error) {
+        console.error("Email handler error:", error);
+        return NextResponse.json(
+            { error: "Internal server error" },
+            { status: 500 }
+        );
+    }
+}
+
+// Wrap with QStash signature verification for security
+// Only apply if key is present to avoid build failures
+let POST_HANDLER: any = handler;
+if (process.env.QSTASH_CURRENT_SIGNING_KEY) {
+    POST_HANDLER = verifySignatureAppRouter(handler);
+} else {
+    // In production this should be a critical error or handled via env check at start
+    // For build contexts without secrets, we skip verification
+    if (process.env.NODE_ENV === 'production') {
+        console.warn("WARNING: QSTASH_CURRENT_SIGNING_KEY missing in production. Endpoint is unsecured.");
+    }
+}
+
+export const POST = POST_HANDLER;

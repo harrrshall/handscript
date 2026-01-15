@@ -45,12 +45,13 @@ export async function POST(request: Request) {
         }));
 
         // Generate signed URLs for Gemini
+        // Increased expiry to 2 hours (7200s) to ensure valid during Gemini processing queue time
         const signedUrls = await Promise.all(keys.map(async (key) => {
             const command = new GetObjectCommand({
                 Bucket: process.env.B2_BUCKET_NAME,
                 Key: key,
             });
-            return getSignedUrl(s3Client, command, { expiresIn: 3600 });
+            return getSignedUrl(s3Client, command, { expiresIn: 7200 });
         }));
 
         // Call Gemini with signed URLs

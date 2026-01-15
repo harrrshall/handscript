@@ -10,8 +10,6 @@
 1. [Executive Summary](#executive-summary)
 2. [System Architecture Overview](#system-architecture-overview)
 3. [Dependency Constraints & Version Matrix](#dependency-constraints--version-matrix)
-4. [Unused & Legacy Code Identification](#unused--legacy-code-identification)
-5. [Email Delivery Extension Architecture](#email-delivery-extension-architecture)
 6. [Performance Optimizations for Zero Fast Origin Transfer](#performance-optimizations-for-zero-fast-origin-transfer)
 7. [Implementation Guidance](#implementation-guidance)
 8. [Risk Mitigation & Regression Prevention](#risk-mitigation--regression-prevention)
@@ -1052,7 +1050,6 @@ All recommendations maintain backwards compatibility and include rollback proced
 
 ---
 
-## Appendix D: Free Tier Summary
 
 | Service            | Free Tier Limits                      | Monthly Cost |
 | ------------------ | ------------------------------------- | ------------ |

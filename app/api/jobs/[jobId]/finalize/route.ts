@@ -3,6 +3,38 @@ import { redis } from '@/lib/redis';
 import { uploadFile, deleteFile, getDownloadUrl } from '@/lib/s3';
 import { wrapWithTemplate } from '@/lib/html-template';
 import { PDFDocument } from 'pdf-lib';
+import { queueEmailDelivery } from '@/lib/queue';
+
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+
+const s3Client = new S3Client({
+    endpoint: process.env.B2_ENDPOINT?.startsWith("http")
+        ? process.env.B2_ENDPOINT
+        : `https://${process.env.B2_ENDPOINT}`,
+    region: process.env.B2_REGION,
+    credentials: {
+        accessKeyId: process.env.B2_KEY_ID!,
+        secretAccessKey: process.env.B2_APPLICATION_KEY!,
+    },
+});
+
+// Add helper function to download PDF from B2 key
+async function downloadPdfFromB2(key: string): Promise<Buffer> {
+    const command = new GetObjectCommand({
+        Bucket: process.env.B2_BUCKET_NAME,
+        Key: key,
+    });
+
+    const response = await s3Client.send(command);
+    const chunks: Uint8Array[] = [];
+
+    // @ts-ignore - Body is a readable stream
+    for await (const chunk of response.Body) {
+        chunks.push(chunk);
+    }
+
+    return Buffer.concat(chunks);
+}
 
 export async function POST(
     request: Request,
@@ -58,8 +90,8 @@ export async function POST(
             } else {
                 try {
                     const parsed = typeof val === 'string' ? JSON.parse(val) : val;
-                    // Support new 'html' or legacy 'typst'/'markdown' (fallback to text)
-                    pageHtml = parsed.html || parsed.typst || parsed.markdown || "<p>[EMPTY PAGE]</p>";
+                    // Support new 'html' only (legacy 'typst'/'markdown' removed)
+                    pageHtml = parsed.html || "<p>[EMPTY PAGE]</p>";
                 } catch (e) {
                     pageHtml = "<p>[ERROR PARSING PAGE CACHE]</p>";
                 }
@@ -76,7 +108,12 @@ export async function POST(
                 const response = await fetch(modalEndpoint, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ html: fullHtml }),
+                    body: JSON.stringify({
+                        html: fullHtml,
+                        job_id: jobId,
+                        page_index: i,
+                        upload_to_b2: true, // Enable direct B2 upload
+                    }),
                 });
 
                 if (!response.ok) {
@@ -92,11 +129,35 @@ export async function POST(
                     pageIndex: i,
                     status: response.status,
                     hasPdf: !!data.pdf,
+                    hasKey: !!data.key,
                     hasError: !!data.error,
                     timestamp: new Date().toISOString()
                 }));
 
                 if (data.error) throw new Error(data.error);
+
+                // Check if Modal uploaded directly to B2
+                if (data.key) {
+                    // Download from B2 for merging (internal fast transfer)
+                    const pdfBuffer = await downloadPdfFromB2(data.key);
+
+                    // Clean up temporary page PDF from B2
+                    await deleteFile(data.key);
+
+                    console.log(
+                        JSON.stringify({
+                            event: "RenderSuccess",
+                            jobId,
+                            pageIndex: i,
+                            method: "b2-direct",
+                            durationMs: Date.now() - renderStart,
+                            timestamp: new Date().toISOString(),
+                        })
+                    );
+
+                    return pdfBuffer;
+                }
+
                 if (!data.pdf) throw new Error("No PDF returned");
 
                 const pdfBuffer = Buffer.from(data.pdf, 'base64');
@@ -104,6 +165,7 @@ export async function POST(
                     event: 'RenderSuccess',
                     jobId,
                     pageIndex: i,
+                    method: "base64-fallback",
                     durationMs: Date.now() - renderStart,
                     timestamp: new Date().toISOString()
                 }));
@@ -214,6 +276,38 @@ export async function POST(
         job.finalPdfUrl = pdfUrl; // Presigned URL for frontend
         job.finalPdfKey = pdfKey; // Store key for future re-signing if needed
         job.completedPages = job.totalPages;
+
+        // Queue email notification if email provided
+        if (job.email) {
+            try {
+                await queueEmailDelivery({
+                    jobId,
+                    email: job.email,
+                    pdfUrl,
+                    pdfKey,
+                });
+                job.emailStatus = "queued";
+                console.log(
+                    JSON.stringify({
+                        event: "EmailQueued",
+                        jobId,
+                        email: job.email,
+                        timestamp: new Date().toISOString(),
+                    })
+                );
+            } catch (queueError) {
+                // Don't fail the job - email is best-effort
+                job.emailStatus = "queue_failed";
+                console.error(
+                    JSON.stringify({
+                        event: "EmailQueueFailed",
+                        jobId,
+                        error: String(queueError),
+                        timestamp: new Date().toISOString(),
+                    })
+                );
+            }
+        }
 
         // Persist final state
         await redis.set(`job:${jobId}`, job, { ex: 30 * 24 * 60 * 60 });

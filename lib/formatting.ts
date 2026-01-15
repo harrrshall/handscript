@@ -8,9 +8,10 @@ export function sanitizeLatex(latex: string): string {
     if (!latex) return "";
 
     return latex
-        .replace(/\\textsuperscript\{([^}]+)\}/g, "^{$1}")
-        .replace(/\\textsubscript\{([^}]+)\}/g, "_{$1}")
-        .replace(/\\(vspace|hspace|phantom)\{[^}]+\}/g, "")
+        .replace(/\\textsuperscript\{([^\}]+)\}/g, "^{$1}")
+        .replace(/\\textsubscript\{([^\}]+)\}/g, "_{$1}")
+        .replace(/\\(vspace|hspace|phantom)(\[[^\]]*\])?\{[^{}]*\}/g, "")
+        .replace(/\\ensuremath\{([^{}]+)\}/g, '$1')
         .replace(/^\$\$/, "")
         .replace(/\$\$$/, "");
 }
