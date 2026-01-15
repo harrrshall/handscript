@@ -74,12 +74,18 @@ export async function POST(request: Request) {
             : "http://localhost:3000";
 
         try {
-            await publishToQStash(`${baseUrl}/api/internal/process-batch`, {
+            const result = await publishToQStash(`${baseUrl}/api/internal/process-batch`, {
                 jobId,
                 batchIndex: 0,
                 manifest: pageManifest
             });
-            console.log("Started background processing for job", jobId);
+            console.log(JSON.stringify({
+                event: 'JobBackgroundStart',
+                jobId,
+                qStashResult: result,
+                targetUrl: `${baseUrl}/api/internal/process-batch`,
+                timestamp: new Date().toISOString()
+            }));
         } catch (queueError) {
             console.error("Failed to trigger background processing", queueError);
             // We still return success, client will poll and see it's pending/stuck
