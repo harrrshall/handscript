@@ -1,27 +1,24 @@
 
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import dotenv from 'dotenv';
+import { env } from '../lib/env'; // Use type-safe env
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-dotenv.config({ path: '.env' });
-dotenv.config({ path: '.env.local' });
-
 const s3Client = new S3Client({
-    endpoint: process.env.B2_ENDPOINT?.startsWith('http')
-        ? process.env.B2_ENDPOINT
-        : `https://${process.env.B2_ENDPOINT}`,
-    region: process.env.B2_REGION!,
+    endpoint: env.B2_ENDPOINT?.startsWith('http')
+        ? env.B2_ENDPOINT
+        : `https://${env.B2_ENDPOINT}`,
+    region: env.B2_REGION,
     credentials: {
-        accessKeyId: process.env.B2_KEY_ID!,
-        secretAccessKey: process.env.B2_APPLICATION_KEY!,
+        accessKeyId: env.B2_KEY_ID,
+        secretAccessKey: env.B2_APPLICATION_KEY,
     },
 });
 
 async function main() {
     console.log("Listing 1 file...");
     const listCmd = new ListObjectsV2Command({
-        Bucket: process.env.B2_BUCKET_NAME,
+        Bucket: env.B2_BUCKET_NAME,
         Prefix: "inputs/local/",
         MaxKeys: 1
     });
@@ -38,7 +35,7 @@ async function main() {
     console.log(`Generating presigned URL for ${file.Key}...`);
 
     const command = new GetObjectCommand({
-        Bucket: process.env.B2_BUCKET_NAME,
+        Bucket: env.B2_BUCKET_NAME,
         Key: file.Key,
     });
     const url = await getSignedUrl(s3Client, command, { expiresIn: 7200 });
@@ -59,8 +56,8 @@ async function main() {
     }
 
     console.log("Testing Gemini with single URL...");
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
+    const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     try {
         const result = await model.generateContent([
