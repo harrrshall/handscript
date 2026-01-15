@@ -1,4 +1,9 @@
 import { loadEnvConfig } from '@next/env';
+import { vi } from 'vitest';
+
+// Verify if global.jest is already defined to avoid conflicts, though safely setting it is fine.
+// @ts-ignore
+global.jest = vi;
 
 // Load env vars if available (e.g. from .env.local), but don't crash if missing
 const projectDir = process.cwd();

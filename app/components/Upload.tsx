@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Start the worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@4.8.69/build/pdf.worker.min.mjs`;
 
 interface UploadProps {
@@ -18,115 +17,85 @@ export default function Upload({ onJobCreated, onError }: UploadProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [email, setEmail] = useState("");
     const [emailError, setEmailError] = useState("");
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-    const validateEmail = (email: string) => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(email);
-    };
+    const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const isFormValid = selectedFile && validateEmail(email);
 
-    const processFile = async (file: File) => {
-        if (!validateEmail(email)) {
-            setEmailError("Please enter a valid email address");
+    const handleFileSelect = (file: File) => setSelectedFile(file);
+
+    const handleConvert = async () => {
+        if (!selectedFile || !validateEmail(email)) {
+            if (!validateEmail(email)) setEmailError("Please enter a valid email");
             return;
         }
 
         setIsProcessing(true);
-        // ... rest of logic
         setProgress(0);
         setStatusText('Loading PDF...');
 
         try {
-            const buffer = await file.arrayBuffer();
+            const buffer = await selectedFile.arrayBuffer();
             const pdf = await pdfjsLib.getDocument(buffer).promise;
             const totalPages = pdf.numPages;
 
-            if (totalPages > 200) {
-                throw new Error('PDF too large. Max 200 pages allowed.');
-            }
+            if (totalPages > 200) throw new Error('PDF too large. Max 200 pages.');
 
             const keys: string[] = [];
             const BATCH_SIZE = 5;
 
-            // Extract and upload pages
             for (let i = 1; i <= totalPages; i += BATCH_SIZE) {
                 const batchEnd = Math.min(i + BATCH_SIZE - 1, totalPages);
-                setStatusText(`Uploading pages ${i}-${batchEnd} of ${totalPages}... (Please keep tab open)`);
+                setStatusText(`Uploading ${i}-${batchEnd} of ${totalPages}...`);
 
                 const batchPromises = [];
                 for (let p = i; p <= batchEnd; p++) {
                     batchPromises.push((async () => {
                         const page = await pdf.getPage(p);
-                        const viewport = page.getViewport({ scale: 1.5 }); // 1.5 scale for speed/quality balance
+                        const viewport = page.getViewport({ scale: 1.0 });
                         const canvas = document.createElement('canvas');
                         const context = canvas.getContext('2d');
                         canvas.height = viewport.height;
                         canvas.width = viewport.width;
-
                         if (!context) throw new Error('Canvas context failed');
-
                         // @ts-ignore
                         await page.render({ canvasContext: context, viewport }).promise;
 
                         return new Promise<{ index: number, key: string }>((resolve, reject) => {
                             canvas.toBlob(async (blob) => {
-                                if (!blob) {
-                                    reject(new Error('Canvas to Blob failed'));
-                                    return;
-                                }
+                                if (!blob) { reject(new Error('Blob failed')); return; }
                                 try {
-                                    const key = `uploads/${Date.now()}-${Math.random().toString(36).substring(7)}-${p}.png`;
-
-                                    // Get presigned URL
+                                    const key = `uploads/${Date.now()}-${Math.random().toString(36).substring(7)}-${p}.jpg`;
                                     const presignRes = await fetch('/api/get-upload-url', {
                                         method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ key, contentType: 'image/png' })
+                                        body: JSON.stringify({ key, contentType: 'image/jpeg' })
                                     });
-
                                     if (!presignRes.ok) throw new Error('Failed to get upload URL');
                                     const { uploadUrl } = await presignRes.json();
-
-                                    // Upload to B2
-                                    const uploadRes = await fetch(uploadUrl, {
-                                        method: 'PUT',
-                                        body: blob,
-                                        headers: { 'Content-Type': 'image/png' }
-                                    });
-
-                                    if (!uploadRes.ok) throw new Error('Failed to upload to storage');
+                                    const uploadRes = await fetch(uploadUrl, { method: 'PUT', body: blob, headers: { 'Content-Type': 'image/jpeg' } });
+                                    if (!uploadRes.ok) throw new Error('Upload failed');
                                     resolve({ index: p - 1, key });
-                                } catch (e) {
-                                    reject(e);
-                                }
-                            }, 'image/png');
+                                } catch (e) { reject(e); }
+                            }, 'image/jpeg', 0.85);
                         });
                     })());
                 }
 
                 const batchResults = await Promise.all(batchPromises);
                 batchResults.forEach(r => keys[r.index] = r.key);
-
                 setProgress(Math.round((batchEnd / totalPages) * 100));
             }
 
             setStatusText('Creating job...');
-
             const res = await fetch('/api/jobs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    pageCount: totalPages,
-                    pageManifest: keys,
-                    email: email,
-                })
+                body: JSON.stringify({ pageCount: totalPages, pageManifest: keys, email })
             });
-
             if (!res.ok) throw new Error('Failed to create job');
             const data = await res.json();
-
-            // Pass keys to parent for processing
             onJobCreated(data.jobId, keys, email);
-
         } catch (err: any) {
             console.error(err);
             onError(err.message || 'Failed to process PDF');
@@ -135,66 +104,80 @@ export default function Upload({ onJobCreated, onError }: UploadProps) {
     };
 
     return (
-        <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-12 flex flex-col items-center justify-center text-center transition-colors hover:border-blue-500 hover:bg-gray-50 dark:hover:bg-gray-900/50">
+        <div className="w-full max-w-md">
+            <div className="bg-white rounded-xl shadow-soft overflow-hidden border border-slate-200/50 ring-1 ring-slate-900/5">
+                <div className="p-4 sm:p-6">
+                    {isProcessing ? (
+                        <div className="space-y-3">
+                            <div className="bg-slate-100 rounded-full h-2 overflow-hidden">
+                                <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${progress}%` }}></div>
+                            </div>
+                            <p className="text-xs text-cool-grey text-center animate-pulse">{statusText}</p>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Dropzone - Compact */}
+                            <div className="relative group/dropzone cursor-pointer">
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    accept="application/pdf"
+                                    className="absolute inset-0 w-full h-full opacity-0 z-20 cursor-pointer"
+                                    onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileSelect(file); }}
+                                />
+                                <div className={`border border-dashed rounded-lg p-6 sm:p-8 text-center transition-all ${selectedFile ? 'border-primary bg-primary/5' : 'border-slate-300 group-hover/dropzone:border-primary/50 group-hover/dropzone:bg-slate-50'
+                                    }`}>
+                                    <div className={`w-10 h-10 sm:w-12 sm:h-12 mx-auto rounded-full flex items-center justify-center mb-3 transition-transform group-hover/dropzone:scale-105 ${selectedFile ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-cool-grey group-hover/dropzone:text-primary'
+                                        }`}>
+                                        <span className="material-symbols-outlined text-xl sm:text-2xl">{selectedFile ? 'description' : 'cloud_upload'}</span>
+                                    </div>
+                                    {selectedFile ? (
+                                        <>
+                                            <p className="text-sm font-medium text-slate-grey truncate">{selectedFile.name}</p>
+                                            <p className="text-[10px] text-cool-grey mt-1">Click to change</p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <p className="text-sm font-medium text-slate-grey">Drop PDF or <span className="text-primary underline">browse</span></p>
+                                            <p className="text-[10px] text-cool-grey/60 mt-1">Up to 200 pages</p>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
 
-            {isProcessing ? (
-                <div className="w-full max-w-sm space-y-4">
-                    <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                        <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
-                    </div>
-                    <p className="text-sm text-gray-500 font-medium animate-pulse">{statusText}</p>
+                            {/* Email + Convert - Compact */}
+                            <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-cool-grey/50 text-lg">mail</span>
+                                    <input
+                                        type="email"
+                                        value={email}
+                                        onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(""); }}
+                                        placeholder="Your email"
+                                        className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg bg-slate-50/50 text-slate-grey placeholder-cool-grey/40 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all ${emailError ? 'border-red-400' : 'border-slate-200'
+                                            }`}
+                                    />
+                                </div>
+                                {emailError && <p className="text-[10px] text-red-500">{emailError}</p>}
+                                <button
+                                    onClick={handleConvert}
+                                    disabled={!isFormValid}
+                                    className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition-all ${isFormValid
+                                            ? 'text-white bg-primary hover:bg-primary/90 shadow-md shadow-primary/20'
+                                            : 'text-cool-grey/50 bg-slate-100 cursor-not-allowed'
+                                        }`}
+                                >
+                                    <span className="material-symbols-outlined text-base">auto_fix_high</span>
+                                    Convert to PDF
+                                </button>
+                                <p className="text-center text-[10px] text-cool-grey/50 flex items-center justify-center gap-1">
+                                    <span className="material-symbols-outlined text-[12px]">lock</span> Secure 256-bit encryption
+                                </p>
+                            </div>
+                        </>
+                    )}
                 </div>
-            ) : (
-                <>
-                    <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-4">
-                        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                        </svg>
-                    </div>
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">Upload PDF</h3>
-                    <p className="mt-1 text-sm text-gray-500">Up to 200 pages</p>
-
-                    <div className="mt-6 w-full max-w-xs text-left">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Email for delivery
-                        </label>
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => {
-                                setEmail(e.target.value);
-                                if (emailError) setEmailError("");
-                            }}
-                            placeholder="your@email.com"
-                            className={`w-full px-4 py-2 rounded-lg border ${emailError ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none`}
-                        />
-                        {emailError && <p className="text-xs text-red-500 mt-1">{emailError}</p>}
-                    </div>
-
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        accept="application/pdf"
-                        className="hidden"
-                        onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) processFile(file);
-                        }}
-                    />
-                    <button
-                        onClick={() => {
-                            if (!validateEmail(email)) {
-                                setEmailError("Email is required");
-                                return;
-                            }
-                            fileInputRef.current?.click();
-                        }}
-                        className="mt-4 px-6 py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg font-medium hover:opacity-90 transition-opacity"
-                    >
-                        Select File
-                    </button>
-                </>
-            )}
+            </div>
         </div>
     );
 }

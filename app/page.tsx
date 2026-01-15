@@ -17,7 +17,6 @@ export default function Home() {
   const [email, setEmail] = useState<string | undefined>(undefined);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -37,19 +36,12 @@ export default function Home() {
     setIsLoaded(true);
   }, []);
 
-  // Save to localStorage on change
   useEffect(() => {
     if (!isLoaded) return;
-
     if (state === 'upload' || state === 'complete') {
       localStorage.removeItem(STORAGE_KEY);
     } else {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        jobId,
-        state,
-        images,
-        email
-      }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ jobId, state, images, email }));
     }
   }, [jobId, state, images, email, isLoaded]);
 
@@ -60,14 +52,8 @@ export default function Home() {
     setState('processing');
   };
 
-  const handleComplete = () => {
-    setState('complete');
-  };
-
-  const handleError = (msg: string) => {
-    setError(msg);
-    setState('error');
-  };
+  const handleComplete = () => setState('complete');
+  const handleError = (msg: string) => { setError(msg); setState('error'); };
 
   const reset = () => {
     setJobId(null);
@@ -80,57 +66,74 @@ export default function Home() {
 
   if (!isLoaded) {
     return (
-      <div className="min-h-screen p-8 pb-20 sm:p-20 font-[family-name:var(--font-geist-sans)] flex items-center justify-center">
-        <div className="animate-pulse text-gray-400">Loading HandScript...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background-light">
+        <div className="animate-pulse text-cool-grey">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen p-8 pb-20 sm:p-20 font-[family-name:var(--font-geist-sans)]">
+    <div className="bg-background-light h-screen flex flex-col relative overflow-hidden">
+      {/* Background patterns */}
+      <div className="fixed inset-0 z-0 pointer-events-none bg-grid opacity-20"></div>
+      <div className="fixed inset-0 z-0 pointer-events-none hero-wash"></div>
+
       <Header />
-      <main className="flex flex-col gap-8 items-center sm:items-start max-w-2xl mx-auto w-full">
+
+      {/* Main Content - Flex grow to fill available space */}
+      <main className="flex-1 flex flex-col items-center justify-center relative z-10 pt-16 sm:pt-20 px-4">
 
         {state === 'upload' && (
-          <div className="w-full">
-            <div className="mb-8 text-center sm:text-left">
-              <h2 className="text-2xl font-bold tracking-tight">Convert Notes to PDF</h2>
-              <p className="text-gray-500 dark:text-gray-400 mt-2">
-                Upload your handwritten notes and let our AI convert them into clean,
-                formatted engineering/academic documents.
+          <div className="w-full max-w-xl flex flex-col items-center">
+            {/* Hero - Compact */}
+            <div className="text-center mb-4 sm:mb-6">
+              <h1 className="font-display text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-slate-grey leading-tight tracking-tight mb-2 sm:mb-3">
+                Transform Handwriting <span className="text-cool-grey italic font-normal">into</span> Professional Assets
+              </h1>
+              <p className="text-xs sm:text-sm md:text-base text-cool-grey font-light">
+                Turn notes into searchable, citation-ready PDFs with 99% accuracy.
               </p>
             </div>
+
+            {/* Upload Card */}
             <Upload onJobCreated={handleJobCreated} onError={handleError} />
+
+            {/* Trusted Section - More Compact */}
+            <div className="mt-3 sm:mt-4 w-full">
+              <p className="text-center text-[7px] sm:text-[8px] font-semibold text-cool-grey/40 uppercase tracking-wider mb-1.5 sm:mb-2">Trusted by researchers at</p>
+              <div className="flex flex-wrap justify-center items-center gap-3 sm:gap-4 md:gap-6 opacity-50">
+                <span className="text-slate-grey font-display font-semibold text-[9px] sm:text-[10px]">Stanford</span>
+                <span className="text-slate-grey font-display font-semibold text-[9px] sm:text-[10px]">Oxford</span>
+                <span className="text-slate-grey font-display font-semibold text-[9px] sm:text-[10px]">MIT</span>
+                <span className="text-slate-grey font-display font-semibold text-[9px] sm:text-[10px]">Harvard</span>
+              </div>
+            </div>
           </div>
         )}
 
         {(state === 'processing' || state === 'complete') && jobId && (
-          <Status
-            jobId={jobId}
-            images={images}
-            email={email}
-            onComplete={handleComplete}
-            onError={handleError}
-            onReset={reset}
-          />
+          <div className="w-full max-w-md">
+            <Status jobId={jobId} images={images} email={email} onComplete={handleComplete} onError={handleError} onReset={reset} />
+          </div>
         )}
 
         {state === 'error' && (
-          <div className="w-full bg-red-50 dark:bg-red-900/20 p-6 rounded-lg border border-red-200 dark:border-red-800">
-            <h3 className="text-red-800 dark:text-red-200 font-semibold mb-2">Something went wrong</h3>
-            <p className="text-red-600 dark:text-red-300">{error || 'Unknown error occurred'}</p>
-            <button
-              onClick={reset}
-              className="mt-4 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-800 rounded transition-colors"
-            >
+          <div className="w-full max-w-md bg-red-50 p-6 rounded-xl border border-red-200">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="material-symbols-outlined text-red-600 text-xl">error</span>
+              <h3 className="text-red-800 font-semibold">Something went wrong</h3>
+            </div>
+            <p className="text-red-600 text-sm mb-4">{error || 'Unknown error occurred'}</p>
+            <button onClick={reset} className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-800 rounded-lg text-sm font-medium transition-colors">
               Try Again
             </button>
           </div>
         )}
-
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center mt-12 text-sm text-gray-400">
-        <p>© 2026 HandScript. Powered by Gemini & Typst.</p>
+
+      {/* Footer - Minimal */}
+      <footer className="relative z-10 py-3 text-center">
+        <p className="text-[10px] sm:text-xs text-cool-grey/50 font-light">© 2026 NoteConverter</p>
       </footer>
     </div>
   );

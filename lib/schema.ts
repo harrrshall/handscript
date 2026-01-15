@@ -54,7 +54,19 @@ export const DocumentSchema = z.object({
     content: z.array(ContentBlockSchema),
 });
 
+// Schema for single page response (used in atomic processing)
+export const SinglePageResponseSchema = z.object({
+    metadata: z.object({
+        title: z.string(),
+        subject: z.string(),
+        documentType: z.enum(["lecture", "problem-set", "summary", "other"]),
+    }),
+    content: z.array(ContentBlockSchema)
+});
+
 export type DocumentIR = z.infer<typeof DocumentSchema>;
 export type ContentBlock = z.infer<typeof ContentBlockSchema>;
 export type BatchResponse = z.infer<typeof BatchResponseSchema>;
 export type Page = z.infer<typeof PageSchema>;
+export type SinglePageResponse = z.infer<typeof SinglePageResponseSchema>;
+

@@ -9,7 +9,7 @@ const createJobSchema = z.object({
     email: z.string().email().optional(),
 });
 
-import { publishToQStash } from "@/lib/queue";
+import { batchPublishToQStash } from "@/lib/queue";
 import { logger, metrics } from '@/lib/logger';
 import { getBaseUrl } from '@/lib/utils';
 
@@ -27,7 +27,7 @@ async function opportunisticRecovery() {
 
         for (const key of keys) {
             // Skip non-job data keys
-            if (key.includes(':logs') || key.includes(':page:') || key.includes(':completed')) continue;
+            if (key.includes(':logs') || key.includes(':page:') || key.includes(':completed') || key.includes(':results')) continue;
 
             const job: any = await redis.get(key);
             if (!job || typeof job !== 'object') continue;
@@ -89,9 +89,7 @@ export async function POST(request: Request) {
 
         const job: Job = {
             id: jobId,
-            status: 'content_processing' as any, // Using 'content_processing' to match state, or just 'processing'
-            // Plan said 'pending' then 'processing'. Let's stick to plan.
-            // But typically creation is instant.
+            status: 'processing',
             createdAt: timestamp,
             updatedAt: timestamp,
             totalPages: pageCount,
@@ -102,38 +100,49 @@ export async function POST(request: Request) {
             email,
         };
 
-        // Override status to 'processing' immediately as client will start polling/processing
-        job.status = 'processing';
-
         await redis.set(`job:${jobId}`, job);
         // Set 30 day expiry
         await redis.expire(`job:${jobId}`, 30 * 24 * 60 * 60);
 
-        // TRIGGER BACKGROUND PROCESSING via QStash
+        // ATOMIC FAN-OUT: Trigger N parallel function calls (1 per image)
         const baseUrl = getBaseUrl();
 
         try {
-            const result = await publishToQStash(`${baseUrl}/api/internal/process-batch`, {
+            // Build batch of messages for QStash - 1 message per page
+            const messages = pageManifest.map((imageKey, index) => ({
+                destination: `${baseUrl}/api/internal/process-image`,
+                body: { jobId, imageKey, index }
+            }));
+
+            const result = await batchPublishToQStash(messages);
+
+            logger.info('JobFanOutStart', {
                 jobId,
-                batchIndex: 0,
-                manifest: pageManifest
-            });
-            logger.info('JobBackgroundStart', {
-                jobId,
-                metadata: { qStashResult: result, targetUrl: `${baseUrl}/api/internal/process-batch` }
+                metadata: {
+                    messageCount: messages.length,
+                    targetUrl: `${baseUrl}/api/internal/process-image`,
+                    resultCount: result.results?.length || 0
+                }
             });
             await metrics.increment("jobs_created");
         } catch (queueError: any) {
-            logger.error("JobBackgroundTriggerFailed", { jobId, error: queueError.message });
-            // We still return success, client will poll and see it's pending/stuck
-            // or retry manually if we built that UI.
-            // Crucially, if email was provided, this failure is critical for 'fire-and-forget'.
+            logger.error("JobFanOutTriggerFailed", { jobId, error: queueError.message });
+            // Mark job as failed if we couldn't queue any messages
+            job.status = 'failed';
+            job.error = `Failed to queue processing: ${queueError.message}`;
+            await redis.set(`job:${jobId}`, job);
+
+            return NextResponse.json({
+                jobId,
+                status: 'failed',
+                error: 'Failed to start processing'
+            }, { status: 500 });
         }
 
         return NextResponse.json({
             jobId,
             status: 'processing',
-            estimatedTime: pageCount * 2, // Rough estimate
+            estimatedTime: Math.max(10, pageCount * 1), // Faster with parallel processing
         });
     } catch (error: any) {
         logger.error('JobCreationError', { error: error.message, stack: error.stack });
@@ -146,3 +155,4 @@ export async function POST(request: Request) {
         );
     }
 }
+

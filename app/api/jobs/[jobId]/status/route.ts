@@ -13,8 +13,8 @@ export async function GET(
             return NextResponse.json({ error: 'Job not found' }, { status: 404 });
         }
 
-        // Get real-time progress
-        const completedCount = await redis.get(`job:${jobId}:completed`) as number || 0;
+        // Get real-time progress (IDEMPOTENCY FIX: Use scard for unique count)
+        const completedCount = await redis.scard(`job:${jobId}:completed_indices`) || 0;
         const failedList = await redis.lrange(`job:${jobId}:failed`, 0, -1) || [];
 
         // Update job object in memory for response (we don't persist this back to avoid race conditions yet)

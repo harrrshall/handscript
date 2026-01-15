@@ -67,3 +67,72 @@ export async function queueErrorEmail(payload: ErrorEmailPayload) {
 
     return publishToQStash(`${baseUrl}/api/send-error-email`, payload);
 }
+
+// Batch message interface for QStash batch API
+export interface BatchMessage {
+    destination: string;
+    body: any;
+    headers?: Record<string, string>;
+}
+
+/**
+ * Publish multiple messages to QStash in a single API call (fan-out pattern).
+ * Uses QStash's batch endpoint for efficiency.
+ * For localhost, dispatches each message individually with fire-and-forget.
+ */
+export async function batchPublishToQStash(messages: BatchMessage[]) {
+    if (messages.length === 0) {
+        return { results: [] };
+    }
+
+    // Check if first destination is localhost (all should be same host)
+    if (isLocalhost(messages[0].destination)) {
+        logger.info(`QueueBatchLocalBypass`, { messageCount: messages.length });
+
+        // Fire-and-forget each message for local development
+        const results = messages.map((msg, index) => {
+            fetch(msg.destination, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...msg.headers
+                },
+                body: JSON.stringify(msg.body),
+            }).catch(err =>
+                logger.error(`QueueLocalDispatchFailed`, {
+                    metadata: { url: msg.destination, index },
+                    error: String(err)
+                })
+            );
+            return { messageId: `local-dev-mock-id-${index}` };
+        });
+
+        return { results };
+    }
+
+    if (!env.QSTASH_TOKEN) {
+        logger.warn("QueueBatchSkippedNoToken", { messageCount: messages.length });
+        return { results: messages.map((_, i) => ({ messageId: `skipped-no-token-${i}` })) };
+    }
+
+    // Use QStash batch API
+    const batchMessages = messages.map(msg => ({
+        destination: msg.destination,
+        body: JSON.stringify(msg.body),
+        headers: {
+            "Content-Type": "application/json",
+            ...msg.headers
+        },
+        retries: 3,
+    }));
+
+    const results = await qstash.batchJSON(batchMessages);
+
+    await metrics.increment("qstash_batch_published");
+    logger.info('QStashBatchPublish', {
+        messageCount: messages.length,
+        metadata: { resultCount: Array.isArray(results) ? results.length : 1 },
+    });
+
+    return { results };
+}

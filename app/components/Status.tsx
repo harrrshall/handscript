@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 interface StatusProps {
     jobId: string;
     images?: string[];
-    email?: string; // Add email prop
+    email?: string;
     onComplete: () => void;
     onError: (msg: string) => void;
     onReset: () => void;
@@ -59,52 +59,49 @@ export default function Status({ jobId, images, email, onComplete, onError, onRe
         return () => clearInterval(intervalId);
     }, [jobId, onComplete, onError]);
 
-    // Processing is now handled server-side via QStash.
-    // We only poll for status updates here.
-
-    // If email is provided, we can just show success immediately or let user leave
+    // If email is provided, show success immediately
     const showEmailConfirmation = !!email;
 
     if (showEmailConfirmation) {
         return (
-            <div className="w-full text-center space-y-6 animate-in fade-in zoom-in duration-500">
-                <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto">
-                    <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
+            <div className="w-full bg-white rounded-2xl shadow-soft p-12 text-center space-y-6 border border-white/60 ring-1 ring-slate-900/5">
+                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                    <span className="material-symbols-outlined text-green-600 text-4xl">check_circle</span>
                 </div>
-                <h2 className="text-2xl font-bold">You're All Set!</h2>
-                <p className="text-gray-600 dark:text-gray-300">
-                    Your PDF will be delivered to <strong>{email}</strong> within 1-2 minutes.
+                <h2 className="text-2xl font-display font-bold text-slate-grey">You're All Set!</h2>
+                <p className="text-cool-grey font-light">
+                    Your PDF will be delivered to <strong className="font-medium text-slate-grey">{email}</strong> within 1-2 minutes.
                 </p>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-cool-grey/60 font-light">
                     You can safely close this page. We'll handle everything from here.
                 </p>
-                <button onClick={onReset} className="mt-6 px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors">
+                <button
+                    onClick={onReset}
+                    className="mt-6 px-8 py-3 bg-slate-100 hover:bg-slate-200 text-slate-grey rounded-lg transition-colors font-medium"
+                >
                     Convert Another File
                 </button>
             </div>
-        )
+        );
     }
 
     if (finalUrl) {
         return (
-            <div className="w-full text-center space-y-6 animate-in fade-in zoom-in duration-500">
-                <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto">
-                    <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
+            <div className="w-full bg-white rounded-2xl shadow-soft p-12 text-center space-y-6 border border-white/60 ring-1 ring-slate-900/5">
+                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                    <span className="material-symbols-outlined text-green-600 text-4xl">check_circle</span>
                 </div>
-                <h2 className="text-2xl font-bold">Conversion Complete!</h2>
-                {email && <p className="text-gray-500">Also sent to {email}</p>}
+                <h2 className="text-2xl font-display font-bold text-slate-grey">Conversion Complete!</h2>
+                {email && <p className="text-cool-grey font-light">Also sent to {email}</p>}
                 <a
                     href={finalUrl}
                     download="handscript-notes.pdf"
-                    className="inline-block px-8 py-3 bg-black dark:bg-white text-white dark:text-black rounded-lg font-bold shadow-lg hover:scale-105 transition-transform"
+                    className="inline-flex items-center justify-center px-8 py-3.5 bg-primary text-white rounded-lg font-semibold shadow-lg shadow-primary/10 hover:shadow-primary/20 hover:-translate-y-0.5 transition-all duration-200"
                 >
+                    <span className="material-symbols-outlined mr-2">download</span>
                     Download PDF
                 </a>
-                <button onClick={onReset} className="block w-full text-sm text-gray-500 hover:underline mt-4">
+                <button onClick={onReset} className="block w-full text-sm text-cool-grey hover:text-primary font-light mt-4 transition-colors">
                     Convert another file
                 </button>
             </div>
@@ -114,22 +111,27 @@ export default function Status({ jobId, images, email, onComplete, onError, onRe
     const percent = Math.round((progress.completed / progress.total) * 100);
 
     return (
-        <div className="w-full space-y-6">
+        <div className="w-full bg-white rounded-2xl shadow-soft p-12 border border-white/60 ring-1 ring-slate-900/5 space-y-6">
             <div className="flex justify-between items-end">
                 <div>
-                    <h3 className="text-xl font-bold capitalize">{status.replace('_', ' ')}</h3>
-                    <p className="text-gray-500">
+                    <h3 className="text-xl font-display font-bold text-slate-grey capitalize">{status.replace('_', ' ')}</h3>
+                    <p className="text-cool-grey font-light">
                         {status === 'processing' ? `Processing page ${progress.completed} of ${progress.total}` : 'Please wait...'}
                     </p>
                 </div>
-                <span className="text-2xl font-mono">{percent}%</span>
+                <span className="text-3xl font-display font-bold text-primary">{percent}%</span>
             </div>
 
-            <div className="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-4 overflow-hidden">
+            <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
                 <div
-                    className="bg-blue-600 h-full transition-all duration-500 ease-out"
+                    className="bg-primary h-full transition-all duration-500 ease-out rounded-full"
                     style={{ width: `${percent}%` }}
                 />
+            </div>
+
+            <div className="flex items-center justify-center gap-2 text-cool-grey/60">
+                <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+                <span className="text-sm font-light">Processing your notes...</span>
             </div>
         </div>
     );

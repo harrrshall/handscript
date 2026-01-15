@@ -56,17 +56,29 @@ export async function POST(
             return NextResponse.json({ error: 'Job not found' }, { status: 404 });
         }
 
-        // 1. Fetch all page results ONCE
-        const keys = Array.from({ length: job.totalPages }, (_, i) => `job:${jobId}:page:${i}`);
-
+        // 1. Fetch all page results - try new hash format first, then fall back to legacy
         let results: (string | null)[];
         try {
-            results = await redis.mget(keys);
-            await logger.logToRedis(jobId, `Retrieved ${results.length} pages from storage.`);
+            // New format: Results stored in hash with index as key
+            const hashResults = await redis.hgetall(`job:${jobId}:results`);
+
+            if (hashResults && Object.keys(hashResults).length > 0) {
+                // Convert hash to ordered array
+                results = Array.from({ length: job.totalPages }, (_, i) => {
+                    const val = hashResults[i.toString()];
+                    return val ? (typeof val === 'string' ? val : JSON.stringify(val)) : null;
+                });
+                await logger.logToRedis(jobId, `Retrieved ${Object.keys(hashResults).length} pages from hash storage.`);
+            } else {
+                // Legacy format: Individual keys per page
+                const keys = Array.from({ length: job.totalPages }, (_, i) => `job:${jobId}:page:${i}`);
+                results = await redis.mget(keys);
+                await logger.logToRedis(jobId, `Retrieved ${results.length} pages from legacy storage.`);
+            }
         } catch (e: any) {
             logger.error('RedisError', {
                 jobId,
-                operation: 'mget',
+                operation: 'hgetall/mget',
                 error: e.message,
                 stack: e.stack
             });
@@ -110,7 +122,7 @@ export async function POST(
                                 html: fullHtml,
                                 job_id: jobId,
                                 page_index: i,
-                                upload_to_b2: true, // Enable direct B2 upload
+                                upload_to_b2: false, // Disable direct B2 upload to save bandwidth
                             }),
                         }),
                         30000,
@@ -335,13 +347,15 @@ export async function POST(
                     });
                 }
 
-                // Delete page cache from Redis
+                // Delete page cache from Redis (both legacy and new formats)
                 const pageKeys = Array.from(
                     { length: job.totalPages },
                     (_, i) => `job:${jobId}:page:${i}`
                 );
                 if (pageKeys.length > 0) await redis.del(...pageKeys);
-                await redis.del(`job:${jobId}:completed`);
+                await redis.del(`job:${jobId}:results`); // New hash storage cleanup
+                await redis.del(`job:${jobId}:completed`); // Legacy cleanup
+                await redis.del(`job:${jobId}:completed_indices`); // Legacy set cleanup
                 await redis.del(`job:${jobId}:logs`);
 
             } catch (cleanupError) {

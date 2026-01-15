@@ -45,6 +45,21 @@ vi.mock('../lib/utils', async (importOriginal) => {
     };
 });
 
+// Mock lib/env to avoid singleton caching issues
+vi.mock('@/lib/env', () => ({
+    env: {
+        QSTASH_TOKEN: 'mock_token',
+        VERCEL_URL: 'test.vercel.app',
+        B2_ENDPOINT: 'endpoint',
+        B2_REGION: 'region',
+        B2_KEY_ID: 'key',
+        B2_APPLICATION_KEY: 'appkey',
+        B2_BUCKET_NAME: 'bucket',
+        GEMINI_API_KEY: 'gemini',
+        MODAL_PDF_ENDPOINT: 'modal',
+    }
+}));
+
 describe('lib/queue.ts (Section 2.3)', () => {
     let mockFetch: any;
     let publishToQStash: any;
@@ -55,8 +70,7 @@ describe('lib/queue.ts (Section 2.3)', () => {
         vi.resetModules(); // CRITICAL: Reset modules to handle re-imports and environment changes
         vi.clearAllMocks();
 
-        process.env.QSTASH_TOKEN = 'mock_token';
-        process.env.VERCEL_URL = 'test.vercel.app';
+        // process.env changes removed as we mock lib/env directly now
 
         mockFetch = vi.fn().mockResolvedValue({ ok: true });
         vi.stubGlobal('fetch', mockFetch);

@@ -46,3 +46,10 @@ tmp
 test-output/
 
 debug/
+
+.venv/
+__pycache__/
+*.pyc
+*.log
+*.json
+scripts/temp_images_workflow/

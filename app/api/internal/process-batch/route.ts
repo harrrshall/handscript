@@ -117,7 +117,13 @@ async function handler(request: NextRequest) {
         });
 
         await redis.mset(msetObj);
-        await redis.incrby(`job:${jobId}:completed`, keys.length);
+        await redis.mset(msetObj);
+        // IDEMPOTENCY FIX: Use SADD to store unique completed page indices instead of INCRBY
+        // This prevents double-counting if a batch is retried.
+        const pageIndices = Array.from({ length: keys.length }, (_, i) => start + i);
+        if (pageIndices.length > 0) {
+            await redis.sadd(`job:${jobId}:completed_indices`, ...(pageIndices as [number, ...number[]]));
+        }
         await logger.logToRedis(jobId, `Completed batch ${batchIndex}. Progress: ${start + keys.length}/${manifest.length}`);
 
         // Trigger Next Batch recursively
