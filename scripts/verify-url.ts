@@ -8,8 +8,10 @@ dotenv.config({ path: '.env' });
 dotenv.config({ path: '.env.local' });
 
 const s3Client = new S3Client({
-    endpoint: process.env.B2_ENDPOINT.startsWith('http') ? process.env.B2_ENDPOINT : `https://${process.env.B2_ENDPOINT}`,
-    region: process.env.B2_REGION,
+    endpoint: process.env.B2_ENDPOINT?.startsWith('http')
+        ? process.env.B2_ENDPOINT
+        : `https://${process.env.B2_ENDPOINT}`,
+    region: process.env.B2_REGION!,
     credentials: {
         accessKeyId: process.env.B2_KEY_ID!,
         secretAccessKey: process.env.B2_APPLICATION_KEY!,

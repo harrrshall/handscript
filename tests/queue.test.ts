@@ -19,15 +19,18 @@ vi.mock('@upstash/qstash', () => {
 });
 
 // Mock logger and metrics using relative path
-vi.mock('../lib/logger', () => {
+vi.mock('@/lib/logger', () => {
     return {
         logger: {
             info: vi.fn(),
             warn: vi.fn(),
             error: vi.fn(),
+            logToRedis: vi.fn(),
         },
         metrics: {
             increment: vi.fn(),
+            recordLatency: vi.fn(),
+            gauge: vi.fn(),
         },
     };
 });
