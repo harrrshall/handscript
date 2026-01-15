@@ -7,8 +7,8 @@ import { logger, metrics } from './logger';
 
 const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
 
-// IMPORTANT: Gemini 2.0 does NOT support external URLs
-// Must use 2.5+ or 1.5 models. current: gemini-2.5-flash
+// UPDATED: Use gemini-2.5-flash for external URL support
+// Note: Gemini 2.0 family does NOT support external URLs
 const ACTIVE_MODEL_NAME = 'gemini-2.5-flash';
 
 function cleanSchema(schema: any): any {
@@ -49,7 +49,7 @@ You are an expert academic transcription system.
 Your goal is to transcribe handwritten notes into a structured format.
 
 INPUT:
-- A batch of images (pages of notes).
+- A batch of images (pages of notes) from external URLs.
 
 OUTPUT:
 - A JSON object adhering strictly to the provided schema.
@@ -99,7 +99,7 @@ export async function generateBatchNotes(signedUrls: string[]): Promise<BatchRes
                     SYSTEM_PROMPT,
                     ...imageParts
                 ]),
-                25000,
+                120000,
                 "Gemini request timed out"
             ),
             {

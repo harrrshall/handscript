@@ -1,540 +1,557 @@
-You can configure Gemini models to generate responses that adhere to a provided JSON
-Schema. This ensures predictable, type-safe results and simplifies extracting
-structured data from unstructured text.
+# Gemini API + Backblaze B2 Signed URLs Integration Guide
 
-Using structured outputs is ideal for:
+## Overview
 
-- **Data extraction:** Pull specific information like names and dates from text.
-- **Structured classification:** Classify text into predefined categories.
-- **Agentic workflows:** Generate structured inputs for tools or APIs.
+This guide shows how to integrate Gemini API's new External URL feature with your existing Backblaze B2 infrastructure to process handwritten notes **without routing bandwidth through your Vercel serverless functions**.
 
-In addition to supporting JSON Schema in the REST API, the Google GenAI SDKs
-make it easy to define schemas using
-[Pydantic](https://docs.pydantic.dev/latest/) (Python) and
-[Zod](https://zod.dev/) (JavaScript).
+### Why This Solution?
 
-Recipe Extractor Content Moderation Recursive Structures
+- ✅ **Zero bandwidth through Vercel** - Gemini fetches directly from B2
+- ✅ **No 48-hour expiration** - Uses your existing B2 storage
+- ✅ **Cost effective** - No double upload (B2 → Vercel → Gemini)
+- ✅ **Production ready** - Announced January 12, 2026
+- ✅ **Simple integration** - Minimal code changes needed
 
-This example demonstrates how to extract structured data from text using basic JSON Schema types like `object`, `array`, `string`, and `integer`.  
+---
 
-### Python
+## Architecture Changes
 
-    from google import genai
-    from pydantic import BaseModel, Field
-    from typing import List, Optional
+### Before (Current - Bandwidth Through Vercel)
+```
+Browser → Vercel → B2 (upload)
+B2 → Vercel → Gemini API (download + forward) ❌ HIGH BANDWIDTH
+```
 
-    class Ingredient(BaseModel):
-        name: str = Field(description="Name of the ingredient.")
-        quantity: str = Field(description="Quantity of the ingredient, including units.")
+### After (Direct Fetch - Zero Vercel Bandwidth)
+```
+Browser → Vercel → B2 (upload)
+B2 → Gemini API (direct fetch) ✅ NO BANDWIDTH COST
+```
 
-    class Recipe(BaseModel):
-        recipe_name: str = Field(description="The name of the recipe.")
-        prep_time_minutes: Optional[int] = Field(description="Optional time in minutes to prepare the recipe.")
-        ingredients: List[Ingredient]
-        instructions: List[str]
+---
 
-    client = genai.Client()
+## Prerequisites
 
-    prompt = """
-    Please extract the recipe from the following text.
-    The user wants to make delicious chocolate chip cookies.
-    They need 2 and 1/4 cups of all-purpose flour, 1 teaspoon of baking soda,
-    1 teaspoon of salt, 1 cup of unsalted butter (softened), 3/4 cup of granulated sugar,
-    3/4 cup of packed brown sugar, 1 teaspoon of vanilla extract, and 2 large eggs.
-    For the best part, they'll need 2 cups of semisweet chocolate chips.
-    First, preheat the oven to 375°F (190°C). Then, in a small bowl, whisk together the flour,
-    baking soda, and salt. In a large bowl, cream together the butter, granulated sugar, and brown sugar
-    until light and fluffy. Beat in the vanilla and eggs, one at a time. Gradually beat in the dry
-    ingredients until just combined. Finally, stir in the chocolate chips. Drop by rounded tablespoons
-    onto ungreased baking sheets and bake for 9 to 11 minutes.
-    """
+1. **Gemini API Key** with latest SDK version
+2. **Backblaze B2 Account** (already configured)
+3. **Node.js 18+** (for SDK support)
 
-    response = client.models.generate_content(
-        model="gemini-3-flash-preview",
-        contents=prompt,
-        config={
-            "response_mime_type": "application/json",
-            "response_json_schema": Recipe.model_json_schema(),
-        },
-    )
+---
 
-    recipe = Recipe.model_validate_json(response.text)
-    print(recipe)
+## Implementation
 
-### JavaScript
+### 1. Update Dependencies
 
-    import { GoogleGenAI } from "@google/genai";
-    import { z } from "zod";
-    import { zodToJsonSchema } from "zod-to-json-schema";
+```bash
+npm install @google/generative-ai@latest
+# or
+pnpm add @google/generative-ai@latest
+```
 
-    const ingredientSchema = z.object({
-      name: z.string().describe("Name of the ingredient."),
-      quantity: z.string().describe("Quantity of the ingredient, including units."),
-    });
+**Verify SDK Version:**
+Ensure you have at least version `0.21.0` or later (released after Jan 12, 2026).
 
-    const recipeSchema = z.object({
-      recipe_name: z.string().describe("The name of the recipe."),
-      prep_time_minutes: z.number().optional().describe("Optional time in minutes to prepare the recipe."),
-      ingredients: z.array(ingredientSchema),
-      instructions: z.array(z.string()),
-    });
+---
 
-    const ai = new GoogleGenAI({});
+### 2. Updated Gemini Client (lib/gemini.ts)
 
-    const prompt = `
-    Please extract the recipe from the following text.
-    The user wants to make delicious chocolate chip cookies.
-    They need 2 and 1/4 cups of all-purpose flour, 1 teaspoon of baking soda,
-    1 teaspoon of salt, 1 cup of unsalted butter (softened), 3/4 cup of granulated sugar,
-    3/4 cup of packed brown sugar, 1 teaspoon of vanilla extract, and 2 large eggs.
-    For the best part, they'll need 2 cups of semisweet chocolate chips.
-    First, preheat the oven to 375°F (190°C). Then, in a small bowl, whisk together the flour,
-    baking soda, and salt. In a large bowl, cream together the butter, granulated sugar, and brown sugar
-    until light and fluffy. Beat in the vanilla and eggs, one at a time. Gradually beat in the dry
-    ingredients until just combined. Finally, stir in the chocolate chips. Drop by rounded tablespoons
-    onto ungreased baking sheets and bake for 9 to 11 minutes.
-    `;
+Replace your existing `generateBatchNotes` function:
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: {
+```typescript
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { zodToJsonSchema } from 'zod-to-json-schema';
+import { BatchResponseSchema, BatchResponse } from './schema';
+import { env } from './env';
+import { withRetry, withTimeout } from './utils';
+import { logger, metrics } from './logger';
+
+const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
+
+// UPDATED: Use gemini-2.5-flash for external URL support
+// Note: Gemini 2.0 family does NOT support external URLs
+const ACTIVE_MODEL_NAME = 'gemini-2.5-flash';
+
+function cleanSchema(schema: any): any {
+    if (typeof schema !== 'object' || schema === null) return schema;
+    if (Array.isArray(schema)) return schema.map(cleanSchema);
+
+    const { additionalProperties, ...rest } = schema;
+    const cleaned: any = { ...rest };
+
+    if (cleaned.properties) {
+        cleaned.properties = Object.fromEntries(
+            Object.entries(cleaned.properties).map(([k, v]) => [k, cleanSchema(v)])
+        );
+    }
+    if (cleaned.items) {
+        cleaned.items = cleanSchema(cleaned.items);
+    }
+    if (cleaned.anyOf) {
+        cleaned.anyOf = cleaned.anyOf.map(cleanSchema);
+    }
+
+    return cleaned;
+}
+
+const rawSchema = zodToJsonSchema(BatchResponseSchema, { target: "openApi3" });
+const cleanedSchema = cleanSchema(rawSchema);
+
+export const geminiModel = genAI.getGenerativeModel({
+    model: ACTIVE_MODEL_NAME,
+    generationConfig: {
         responseMimeType: "application/json",
-        responseJsonSchema: zodToJsonSchema(recipeSchema),
-      },
-    });
+        responseSchema: cleanedSchema as any
+    }
+});
 
-    const recipe = recipeSchema.parse(JSON.parse(response.text));
-    console.log(recipe);
+export const SYSTEM_PROMPT = `
+You are an expert academic transcription system.
+Your goal is to transcribe handwritten notes into a structured format.
 
-### Go
+INPUT:
+- A batch of images (pages of notes) from external URLs.
 
-    package main
+OUTPUT:
+- A JSON object adhering strictly to the provided schema.
+- The schema contains a 'pages' array. You must populate it with one entry per image in the input batch.
+- 'pageIndex' must match the order of images (0, 1, 2...).
 
-    import (
-        "context"
-        "fmt"
-        "log"
+TRANSCRIPTION RULES:
+- Transcribe EXACTLY what is written. Do not summarize or "fix" content.
+- Use valid LaTeX for math.
+- For semantic blocks (Theorems, Proofs, etc.), use the 'container' type.
+- For diagrams, provide a detailed description in the 'diagram' type.
+- If text is illegible, use "[UNCLEAR]" or [ILLEGIBLE].
+`;
 
-        "google.golang.org/genai"
-    )
-
-    func main() {
-        ctx := context.Background()
-        client, err := genai.NewClient(ctx, nil)
-        if err != nil {
-            log.Fatal(err)
-        }
-
-        prompt := `
-      Please extract the recipe from the following text.
-      The user wants to make delicious chocolate chip cookies.
-      They need 2 and 1/4 cups of all-purpose flour, 1 teaspoon of baking soda,
-      1 teaspoon of salt, 1 cup of unsalted butter (softened), 3/4 cup of granulated sugar,
-      3/4 cup of packed brown sugar, 1 teaspoon of vanilla extract, and 2 large eggs.
-      For the best part, they'll need 2 cups of semisweet chocolate chips.
-      First, preheat the oven to 375°F (190°C). Then, in a small bowl, whisk together the flour,
-      baking soda, and salt. In a large bowl, cream together the butter, granulated sugar, and brown sugar
-      until light and fluffy. Beat in the vanilla and eggs, one at a time. Gradually beat in the dry
-      ingredients until just combined. Finally, stir in the chocolate chips. Drop by rounded tablespoons
-      onto ungreased baking sheets and bake for 9 to 11 minutes.
-      `
-        config := &genai.GenerateContentConfig{
-            ResponseMIMEType: "application/json",
-            ResponseJsonSchema: map[string]any{
-                "type": "object",
-                "properties": map[string]any{
-                    "recipe_name": map[string]any{
-                        "type":        "string",
-                        "description": "The name of the recipe.",
-                    },
-                    "prep_time_minutes": map[string]any{
-                        "type":        "integer",
-                        "description": "Optional time in minutes to prepare the recipe.",
-                    },
-                    "ingredients": map[string]any{
-                        "type": "array",
-                        "items": map[string]any{
-                            "type": "object",
-                            "properties": map[string]any{
-                                "name": map[string]any{
-                                    "type":        "string",
-                                    "description": "Name of the ingredient.",
-                                },
-                                "quantity": map[string]any{
-                                    "type":        "string",
-                                    "description": "Quantity of the ingredient, including units.",
-                                },
-                            },
-                            "required": []string{"name", "quantity"},
-                        },
-                    },
-                    "instructions": map[string]any{
-                        "type":  "array",
-                        "items": map[string]any{"type": "string"},
-                    },
-                },
-                "required": []string{"recipe_name", "ingredients", "instructions"},
+/**
+ * UPDATED: Generates structured notes using External URLs (B2 Signed URLs)
+ * Gemini fetches images directly from B2 - NO bandwidth through Vercel!
+ *
+ * @param signedUrls Pre-signed URLs to images in B2 (must be valid for ~10 min)
+ * @returns Parsed BatchResponse object
+ */
+export async function generateBatchNotes(signedUrls: string[]): Promise<BatchResponse> {
+    try {
+        // CRITICAL: Use file_data with file_uri for external URLs
+        // This triggers Gemini's direct fetch from B2
+        const imageParts = signedUrls.map((url) => ({
+            fileData: {
+                fileUri: url,
+                mimeType: "image/png",
             },
-        }
+        }));
 
-        result, err := client.Models.GenerateContent(
-            ctx,
-            "gemini-3-flash-preview",
-            genai.Text(prompt),
-            config,
-        )
-        if err != nil {
-            log.Fatal(err)
-        }
-        fmt.Println(result.Text())
-    }
+        logger.info("GeminiRequest", {
+            metadata: {
+                method: "external_url",
+                imageCount: signedUrls.length,
+                note: "Gemini fetching directly from B2"
+            }
+        });
 
-### REST
+        const startTime = Date.now();
 
-    curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent" \
-        -H "x-goog-api-key: $GEMINI_API_KEY" \
-        -H 'Content-Type: application/json' \
-        -X POST \
-        -d '{
-          "contents": [{
-            "parts":[
-              { "text": "Please extract the recipe from the following text.\nThe user wants to make delicious chocolate chip cookies.\nThey need 2 and 1/4 cups of all-purpose flour, 1 teaspoon of baking soda,\n1 teaspoon of salt, 1 cup of unsalted butter (softened), 3/4 cup of granulated sugar,\n3/4 cup of packed brown sugar, 1 teaspoon of vanilla extract, and 2 large eggs.\nFor the best part, they will need 2 cups of semisweet chocolate chips.\nFirst, preheat the oven to 375°F (190°C). Then, in a small bowl, whisk together the flour,\nbaking soda, and salt. In a large bowl, cream together the butter, granulated sugar, and brown sugar\nuntil light and fluffy. Beat in the vanilla and eggs, one at a time. Gradually beat in the dry\ningredients until just combined. Finally, stir in the chocolate chips. Drop by rounded tablespoons\nonto ungreased baking sheets and bake for 9 to 11 minutes." }
-            ]
-          }],
-          "generationConfig": {
-            "responseMimeType": "application/json",
-            "responseJsonSchema": {
-              "type": "object",
-              "properties": {
-                "recipe_name": {
-                  "type": "string",
-                  "description": "The name of the recipe."
-                },
-                "prep_time_minutes": {
-                    "type": "integer",
-                    "description": "Optional time in minutes to prepare the recipe."
-                },
-                "ingredients": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "name": { "type": "string", "description": "Name of the ingredient."},
-                      "quantity": { "type": "string", "description": "Quantity of the ingredient, including units."}
-                    },
-                    "required": ["name", "quantity"]
-                  }
-                },
-                "instructions": {
-                  "type": "array",
-                  "items": { "type": "string" }
+        const result = await withRetry(
+            () => withTimeout(
+                geminiModel.generateContent([
+                    SYSTEM_PROMPT,
+                    ...imageParts
+                ]),
+                35000, // Increased timeout for external fetches
+                "Gemini request timed out"
+            ),
+            {
+                maxRetries: 3,
+                baseDelayMs: 1000,
+                onRetry: (attempt, err) => {
+                    console.warn(`[Gemini] Retry ${attempt} after error: ${err.message}`);
+                    logger.warn("GeminiRetry", {
+                        attempt,
+                        error: err.message,
+                        metadata: { signedUrlCount: signedUrls.length }
+                    });
                 }
-              },
-              "required": ["recipe_name", "ingredients", "instructions"]
             }
-          }
-        }'
+        );
 
-**Example Response:**  
+        const duration = Date.now() - startTime;
+        await metrics.increment("gemini_requests");
+        await metrics.recordLatency("gemini_processing", duration);
 
-    {
-      "recipe_name": "Delicious Chocolate Chip Cookies",
-      "ingredients": [
-        {
-          "name": "all-purpose flour",
-          "quantity": "2 and 1/4 cups"
-        },
-        {
-          "name": "baking soda",
-          "quantity": "1 teaspoon"
-        },
-        {
-          "name": "salt",
-          "quantity": "1 teaspoon"
-        },
-        {
-          "name": "unsalted butter (softened)",
-          "quantity": "1 cup"
-        },
-        {
-          "name": "granulated sugar",
-          "quantity": "3/4 cup"
-        },
-        {
-          "name": "packed brown sugar",
-          "quantity": "3/4 cup"
-        },
-        {
-          "name": "vanilla extract",
-          "quantity": "1 teaspoon"
-        },
-        {
-          "name": "large eggs",
-          "quantity": "2"
-        },
-        {
-          "name": "semisweet chocolate chips",
-          "quantity": "2 cups"
-        }
-      ],
-      "instructions": [
-        "Preheat the oven to 375°F (190°C).",
-        "In a small bowl, whisk together the flour, baking soda, and salt.",
-        "In a large bowl, cream together the butter, granulated sugar, and brown sugar until light and fluffy.",
-        "Beat in the vanilla and eggs, one at a time.",
-        "Gradually beat in the dry ingredients until just combined.",
-        "Stir in the chocolate chips.",
-        "Drop by rounded tablespoons onto ungreased baking sheets and bake for 9 to 11 minutes."
-      ]
-    }
+        const responseText = result.response.text();
+        const data = JSON.parse(responseText);
+        return BatchResponseSchema.parse(data);
 
-## Streaming
+    } catch (error: any) {
+        await metrics.increment("gemini_errors");
+        
+        // Enhanced error logging for URL issues
+        const isUrlError = 
+            error.message?.includes("url_retrieval") ||
+            error.message?.includes("Invalid file_uri") ||
+            error.message?.includes("URL_RETRIEVAL_STATUS");
 
-You can stream structured outputs, which allows you to start processing the response as it's being generated, without having to wait for the entire output to be complete. This can improve the perceived performance of your application.
-
-The streamed chunks will be valid partial JSON strings, which can be concatenated to form the final, complete JSON object.  
-
-### Python
-
-    from google import genai
-    from pydantic import BaseModel, Field
-    from typing import Literal
-
-    class Feedback(BaseModel):
-        sentiment: Literal["positive", "neutral", "negative"]
-        summary: str
-
-    client = genai.Client()
-    prompt = "The new UI is incredibly intuitive and visually appealing. Great job. Add a very long summary to test streaming!"
-
-    response_stream = client.models.generate_content_stream(
-        model="gemini-3-flash-preview",
-        contents=prompt,
-        config={
-            "response_mime_type": "application/json",
-            "response_json_schema": Feedback.model_json_schema(),
-        },
-    )
-
-    for chunk in response_stream:
-        print(chunk.candidates[0].content.parts[0].text)
-
-### JavaScript
-
-    import { GoogleGenAI } from "@google/genai";
-    import { z } from "zod";
-    import { zodToJsonSchema } from "zod-to-json-schema";
-
-    const ai = new GoogleGenAI({});
-    const prompt = "The new UI is incredibly intuitive and visually appealing. Great job! Add a very long summary to test streaming!";
-
-    const feedbackSchema = z.object({
-      sentiment: z.enum(["positive", "neutral", "negative"]),
-      summary: z.string(),
-    });
-
-    const stream = await ai.models.generateContentStream({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseJsonSchema: zodToJsonSchema(feedbackSchema),
-      },
-    });
-
-    for await (const chunk of stream) {
-      console.log(chunk.candidates[0].content.parts[0].text)
-    }
-
-## Structured outputs with tools
-
-| **Preview:** This is a feature available only for the Gemini 3 series models, `gemini-3-pro-preview` and `gemini-3-flash-preview`.
-
-Gemini 3 lets you combine Structured Outputs with built-in tools, including
-[Grounding with Google Search](https://ai.google.dev/gemini-api/docs/google-search),
-[URL Context](https://ai.google.dev/gemini-api/docs/url-context),
-[Code Execution](https://ai.google.dev/gemini-api/docs/code-execution), and
-[File Search](https://ai.google.dev/gemini-api/docs/file-search#structured-output).  
-
-### Python
-
-    from google import genai
-    from pydantic import BaseModel, Field
-    from typing import List
-
-    class MatchResult(BaseModel):
-        winner: str = Field(description="The name of the winner.")
-        final_match_score: str = Field(description="The final match score.")
-        scorers: List[str] = Field(description="The name of the scorer.")
-
-    client = genai.Client()
-
-    response = client.models.generate_content(
-        model="gemini-3-pro-preview",
-        contents="Search for all details for the latest Euro.",
-        config={
-            "tools": [
-                {"google_search": {}},
-                {"url_context": {}}
-            ],
-            "response_mime_type": "application/json",
-            "response_json_schema": MatchResult.model_json_schema(),
-        },  
-    )
-
-    result = MatchResult.model_validate_json(response.text)
-    print(result)
-
-### JavaScript
-
-    import { GoogleGenAI } from "@google/genai";
-    import { z } from "zod";
-    import { zodToJsonSchema } from "zod-to-json-schema";
-
-    const ai = new GoogleGenAI({});
-
-    const matchSchema = z.object({
-      winner: z.string().describe("The name of the winner."),
-      final_match_score: z.string().describe("The final score."),
-      scorers: z.array(z.string()).describe("The name of the scorer.")
-    });
-
-    async function run() {
-      const response = await ai.models.generateContent({
-        model: "gemini-3-pro-preview",
-        contents: "Search for all details for the latest Euro.",
-        config: {
-          tools: [
-            { googleSearch: {} },
-            { urlContext: {} }
-          ],
-          responseMimeType: "application/json",
-          responseJsonSchema: zodToJsonSchema(matchSchema),
-        },
-      });
-
-      const match = matchSchema.parse(JSON.parse(response.text));
-      console.log(match);
-    }
-
-    run();
-
-### REST
-
-    curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent" \
-      -H "x-goog-api-key: $GEMINI_API_KEY" \
-      -H 'Content-Type: application/json' \
-      -X POST \
-      -d '{
-        "contents": [{
-          "parts": [{"text": "Search for all details for the latest Euro."}]
-        }],
-        "tools": [
-          {"googleSearch": {}},
-          {"urlContext": {}}
-        ],
-        "generationConfig": {
-            "responseMimeType": "application/json",
-            "responseJsonSchema": {
-                "type": "object",
-                "properties": {
-                    "winner": {"type": "string", "description": "The name of the winner."},
-                    "final_match_score": {"type": "string", "description": "The final score."},
-                    "scorers": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "The name of the scorer."
-                    }
-                },
-                "required": ["winner", "final_match_score", "scorers"]
+        logger.error("GeminiError", {
+            error: error.message,
+            metadata: {
+                isUrlError,
+                urlCount: signedUrls.length,
+                errorType: error.name,
+                statusCode: error.statusCode
             }
+        });
+
+        // Provide helpful error message for common issues
+        if (isUrlError) {
+            throw new Error(
+                "Gemini could not fetch images from B2. " +
+                "Check: (1) URLs are publicly accessible or properly signed, " +
+                "(2) URLs haven't expired, (3) CORS is configured on B2 bucket"
+            );
         }
-      }'
 
-## JSON schema support
+        throw error;
+    }
+}
+```
 
-To generate a JSON object, set the `response_mime_type` in the generation configuration to `application/json` and provide a `response_json_schema`. The schema must be a valid [JSON Schema](https://json-schema.org/) that describes the desired output format.
+---
 
-The model will then generate a response that is a syntactically valid JSON string matching the provided schema. When using structured outputs, the model will produce outputs in the same order as the keys in the schema.
+### 3. Backblaze B2 Configuration
 
-Gemini's structured output mode supports a subset of the [JSON Schema](https://json-schema.org) specification.
+#### A. Enable CORS on Your B2 Bucket
 
-The following values of `type` are supported:
+Gemini needs to fetch files directly from B2. Configure CORS:
 
-- **`string`**: For text.
-- **`number`**: For floating-point numbers.
-- **`integer`**: For whole numbers.
-- **`boolean`**: For true/false values.
-- **`object`**: For structured data with key-value pairs.
-- **`array`**: For lists of items.
-- **`null`** : To allow a property to be null, include `"null"` in the type array (e.g., `{"type": ["string", "null"]}`).
+```json
+[
+  {
+    "corsRuleName": "allowGeminiAPI",
+    "allowedOrigins": [
+      "https://generativelanguage.googleapis.com"
+    ],
+    "allowedOperations": [
+      "s3_get"
+    ],
+    "allowedHeaders": [
+      "*"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]
+```
 
-These descriptive properties help guide the model:
+**Apply via B2 CLI:**
+```bash
+b2 update-bucket --cors-rules '[...]' YOUR_BUCKET_NAME allPublic
+```
 
-- **`title`**: A short description of a property.
-- **`description`**: A longer and more detailed description of a property.
+**Or via Web Console:**
+1. Go to B2 Bucket Settings
+2. Navigate to "Bucket CORS Rules"
+3. Add the rule above
 
-### Type-specific properties
+#### B. Generate Signed URLs with Appropriate Duration
 
-**For `object` values:**
+Update your `/api/get-upload-url` endpoint to generate signed URLs that last at least **15 minutes** (to account for Gemini processing time):
 
-- **`properties`**: An object where each key is a property name and each value is a schema for that property.
-- **`required`**: An array of strings, listing which properties are mandatory.
-- **`additionalProperties`** : Controls whether properties not listed in `properties` are allowed. Can be a boolean or a schema.
+```typescript
+// Example: lib/b2.ts
+export async function generateSignedDownloadUrl(
+  fileKey: string,
+  durationSeconds: number = 900 // 15 minutes default
+): Promise<string> {
+  const command = new GetObjectCommand({
+    Bucket: env.B2_BUCKET_NAME,
+    Key: fileKey,
+  });
 
-**For `string` values:**
+  return await getSignedUrl(s3Client, command, { 
+    expiresIn: durationSeconds 
+  });
+}
+```
 
-- **`enum`**: Lists a specific set of possible strings for classification tasks.
-- **`format`** : Specifies a syntax for the string, such as `date-time`, `date`, `time`.
+---
 
-**For `number` and `integer` values:**
+### 4. Update Process Batch Function
 
-- **`enum`**: Lists a specific set of possible numeric values.
-- **`minimum`**: The minimum inclusive value.
-- **`maximum`**: The maximum inclusive value.
+Modify `/api/internal/process-batch` to pass signed URLs to Gemini:
 
-**For `array` values:**
+```typescript
+// api/internal/process-batch.ts (simplified excerpt)
 
-- **`items`**: Defines the schema for all items in the array.
-- **`prefixItems`**: Defines a list of schemas for the first N items, allowing for tuple-like structures.
-- **`minItems`**: The minimum number of items in the array.
-- **`maxItems`**: The maximum number of items in the array.
+async function processBatch(jobId: string, batchNumber: number) {
+  // 1. Get image keys from Redis
+  const imageKeys = await redis.lrange(`job:${jobId}:images`, start, end);
 
-## Model support
+  // 2. Generate signed URLs (15 min expiry)
+  const signedUrls = await Promise.all(
+    imageKeys.map(key => generateSignedDownloadUrl(key, 900))
+  );
 
-The following models support structured output:
+  // 3. Call Gemini with external URLs
+  const batchResponse = await generateBatchNotes(signedUrls);
 
-| Model | Structured Outputs |
-|---|---|
-| Gemini 3 Pro Preview | ✔️ |
-| Gemini 3 Flash Preview | ✔️ |
-| Gemini 2.5 Pro | ✔️ |
-| Gemini 2.5 Flash | ✔️ |
-| Gemini 2.5 Flash-Lite | ✔️ |
-| Gemini 2.0 Flash | ✔️\* |
-| Gemini 2.0 Flash-Lite | ✔️\* |
+  // 4. Store results
+  await storeBatchResults(jobId, batchNumber, batchResponse);
+}
+```
 
-*\* Note that Gemini 2.0 requires an explicit `propertyOrdering` list within the JSON input to define the preferred structure. You can find an example in this [cookbook](https://github.com/google-gemini/cookbook/blob/main/examples/Pdf_structured_outputs_on_invoices_and_forms.ipynb).*
+---
 
-## Structured outputs vs. function calling
+## Important Considerations
 
-Both structured outputs and function calling use JSON schemas, but they serve different purposes:
+### 1. Model Compatibility
 
-| Feature | Primary Use Case |
-|---|---|
-| **Structured Outputs** | **Formatting the final response to the user.** Use this when you want the model's *answer* to be in a specific format (e.g., extracting data from a document to save to a database). |
-| **Function Calling** | **Taking action during the conversation.** Use this when the model needs to *ask you* to perform a task (e.g., "get current weather") before it can provide a final answer. |
+⚠️ **CRITICAL:** Gemini 2.0 models do NOT support external URLs.
 
-## Best practices
+**Supported Models:**
+- ✅ `gemini-3-flash-preview`
+- ✅ `gemini-2.5-flash`
+- ✅ `gemini-2.5-pro`
+- ✅ `gemini-1.5-flash`
+- ✅ `gemini-1.5-pro`
 
-- **Clear descriptions:** Use the `description` field in your schema to provide clear instructions to the model about what each property represents. This is crucial for guiding the model's output.
-- **Strong typing:** Use specific types (`integer`, `string`, `enum`) whenever possible. If a parameter has a limited set of valid values, use an `enum`.
-- **Prompt engineering:** Clearly state in your prompt what you want the model to do. For example, "Extract the following information from the text..." or "Classify this feedback according to the provided schema...".
-- **Validation:** While structured output guarantees syntactically correct JSON, it does not guarantee the values are semantically correct. Always validate the final output in your application code before using it.
-- **Error handling:** Implement robust error handling in your application to gracefully manage cases where the model's output, while schema-compliant, may not meet your business logic requirements.
+**NOT Supported:**
+- ❌ `gemini-2.0-flash` (any 2.0 variant)
 
-## Limitations
+### 2. URL Expiration Timing
 
-- **Schema subset:** Not all features of the JSON Schema specification are supported. The model ignores unsupported properties.
-- **Schema complexity:** The API may reject very large or deeply nested schemas. If you encounter errors, try simplifying your schema by shortening property names, reducing nesting, or limiting the number of constraints.
+```
+Timeline:
+┌─────────────────────────────────────────────────────┐
+│ Upload to B2 → Generate URL → Queue Job            │  ~1 min
+│ Job Starts → Gemini Fetches → Processing           │  ~5-10 min
+│ Total Safe Window: 15 minutes                       │
+└─────────────────────────────────────────────────────┘
+```
+
+**Recommendation:** Use 15-20 minute expiration for signed URLs.
+
+### 3. File Size Limits
+
+- **Maximum per file:** 100 MB
+- **Recommended for images:** Keep under 10 MB per PNG for optimal performance
+- **Total payload:** All images combined should stay under 100 MB
+
+### 4. MIME Type Accuracy
+
+Always specify correct MIME types:
+```typescript
+mimeType: "image/png"  // for PNGs
+mimeType: "image/jpeg" // for JPEGs
+mimeType: "image/webp" // for WebP
+```
+
+---
+
+## Error Handling
+
+### Common Error Codes
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `URL_RETRIEVAL_STATUS_UNSAFE` | Content safety check failed | Review image content |
+| `URL_RETRIEVAL_STATUS_FAILED` | Network error or invalid URL | Check URL accessibility |
+| `Invalid file_uri` | Incorrect URL format | Ensure proper HTTPS URL |
+| `403 Forbidden` | CORS or authentication issue | Verify B2 CORS + signed URL |
+| `404 Not Found` | File doesn't exist | Check file was uploaded |
+
+### Retry Strategy
+
+```typescript
+// Already implemented in your withRetry util
+const retryConfig = {
+  maxRetries: 3,
+  baseDelayMs: 1000,
+  backoffMultiplier: 2, // 1s, 2s, 4s
+  onRetry: (attempt, err) => {
+    if (err.message.includes('url_retrieval')) {
+      // Don't retry URL fetch errors immediately
+      return false;
+    }
+    return true; // Retry other errors
+  }
+};
+```
+
+---
+
+## Testing Checklist
+
+### Local Testing
+
+```typescript
+// test/gemini-external-url.test.ts
+import { generateBatchNotes } from '../lib/gemini';
+
+async function testExternalUrls() {
+  // 1. Upload test image to B2
+  const testImageKey = await uploadTestImage();
+  
+  // 2. Generate signed URL
+  const signedUrl = await generateSignedDownloadUrl(testImageKey, 900);
+  
+  // 3. Verify URL is accessible
+  const response = await fetch(signedUrl);
+  console.assert(response.ok, "Signed URL should be accessible");
+  
+  // 4. Test Gemini processing
+  const result = await generateBatchNotes([signedUrl]);
+  console.log("Success:", result.pages.length);
+}
+
+testExternalUrls();
+```
+
+### Production Checklist
+
+- [ ] B2 CORS configured for `generativelanguage.googleapis.com`
+- [ ] Signed URLs generated with 15+ minute expiration
+- [ ] Using `gemini-3-flash-preview` or `gemini-2.5-flash`
+- [ ] Error handling for `url_retrieval` errors
+- [ ] Monitoring for URL fetch failures
+- [ ] Timeout increased to 35 seconds (external fetches slower than inline)
+
+---
+
+## Cost Comparison
+
+### Current Approach (Inline Data)
+```
+Vercel bandwidth: $X per GB egress
+B2 → Vercel → Gemini: FULL image data transfer
+Cost: Vercel egress + Gemini API
+```
+
+### New Approach (External URLs)
+```
+Vercel bandwidth: $0 (no image routing)
+B2 → Gemini: Direct fetch (B2 egress only)
+Cost: B2 egress + Gemini API
+```
+
+**Savings:** Eliminate Vercel egress costs completely!
+
+---
+
+## Migration Strategy
+
+### Phase 1: Parallel Testing (Week 1)
+- Deploy external URL code to staging
+- Run 10% of jobs through new path
+- Monitor error rates and latency
+
+### Phase 2: Gradual Rollout (Week 2)
+- Increase to 50% traffic
+- Compare costs and performance
+- Gather user feedback
+
+### Phase 3: Full Migration (Week 3)
+- Route 100% to external URLs
+- Remove old inline data code
+- Update documentation
+
+---
+
+## Monitoring & Metrics
+
+Track these metrics in your logging system:
+
+```typescript
+// Key metrics to monitor
+metrics.increment("gemini_external_url_requests");
+metrics.increment("gemini_url_fetch_failures");
+metrics.recordLatency("gemini_external_url_latency", duration);
+metrics.gauge("b2_signed_url_expirations", expiredUrlCount);
+```
+
+**Alert thresholds:**
+- URL fetch failure rate > 5%
+- Average latency > 40 seconds
+- Signed URL expiration errors > 1%
+
+---
+
+## Troubleshooting Guide
+
+### Issue: "URL_RETRIEVAL_STATUS_FAILED"
+
+**Symptoms:** Gemini cannot fetch images from B2
+
+**Debug steps:**
+1. Test URL accessibility: `curl -I <signed_url>`
+2. Check URL hasn't expired: verify timestamp
+3. Verify CORS settings on B2 bucket
+4. Test from different IP (Gemini's IPs may differ)
+
+**Solution:**
+```typescript
+// Add pre-flight check before calling Gemini
+async function validateSignedUrl(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, { method: 'HEAD' });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+```
+
+### Issue: Images Not Loading in Final PDF
+
+**Cause:** Gemini processed images, but image references in output are broken
+
+**Solution:** Store image URLs in Redis along with transcription results
+
+---
+
+## API Reference
+
+### Updated Function Signature
+
+```typescript
+/**
+ * Process handwritten notes using Gemini API with external URLs
+ * 
+ * @param signedUrls - Array of B2 signed URLs (HTTPS, 15min+ expiry)
+ * @returns Structured transcription data
+ * 
+ * @throws Error if URL fetch fails or content is unsafe
+ * 
+ * @example
+ * const urls = [
+ *   "https://s3.us-west-000.backblazeb2.com/bucket/page1.png?X-Amz-..."
+ * ];
+ * const result = await generateBatchNotes(urls);
+ */
+export async function generateBatchNotes(
+  signedUrls: string[]
+): Promise<BatchResponse>
+```
+
+---
+
+## Additional Resources
+
+- [Gemini File Input Methods Docs](https://ai.google.dev/gemini-api/docs/file-input-methods)
+- [Backblaze B2 CORS Configuration](https://www.backblaze.com/docs/cloud-storage-cors-rules)
+- [AWS S3 Signed URL Guide](https://docs.aws.amazon.com/AmazonS3/latest/userguide/ShareObjectPreSignedURL.html)
+
+---
+
+## Support
+
+For issues specific to:
+- **Gemini API:** [Google AI Developer Forum](https://discuss.ai.google.dev/)
+- **Backblaze B2:** [B2 Support](https://help.backblaze.com/)
+- **Your App:** Check `logs/` directory or contact your team
+
+---
+
+## Changelog
+
+- **v2.0.0** (Jan 2026): Migrated to external URL method
+- **v1.0.0** (Dec 2025): Original inline data implementation

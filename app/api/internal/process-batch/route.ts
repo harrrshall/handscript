@@ -42,7 +42,7 @@ async function handler(request: NextRequest) {
         body = await request.json();
         const { jobId, batchIndex, manifest } = processBatchSchema.parse(body);
 
-        const BATCH_SIZE = 5;
+        const BATCH_SIZE = 3;
         const start = batchIndex * BATCH_SIZE;
         const end = Math.min(start + BATCH_SIZE, manifest.length);
         const keys = manifest.slice(start, end);
