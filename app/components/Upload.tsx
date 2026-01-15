@@ -7,7 +7,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@4.8.69/build/pdf.worker.min.mjs`;
 
 interface UploadProps {
-    onJobCreated: (jobId: string, images: string[]) => void;
+    onJobCreated: (jobId: string, images: string[], email?: string) => void;
     onError: (msg: string) => void;
 }
 
@@ -50,7 +50,7 @@ export default function Upload({ onJobCreated, onError }: UploadProps) {
             // Extract and upload pages
             for (let i = 1; i <= totalPages; i += BATCH_SIZE) {
                 const batchEnd = Math.min(i + BATCH_SIZE - 1, totalPages);
-                setStatusText(`Processing & Uploading pages ${i}-${batchEnd} of ${totalPages}...`);
+                setStatusText(`Uploading pages ${i}-${batchEnd} of ${totalPages}... (Please keep tab open)`);
 
                 const batchPromises = [];
                 for (let p = i; p <= batchEnd; p++) {
@@ -125,7 +125,7 @@ export default function Upload({ onJobCreated, onError }: UploadProps) {
             const data = await res.json();
 
             // Pass keys to parent for processing
-            onJobCreated(data.jobId, keys);
+            onJobCreated(data.jobId, keys, email);
 
         } catch (err: any) {
             console.error(err);
