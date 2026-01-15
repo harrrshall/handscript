@@ -1,5 +1,12 @@
-
 import { NextRequest, NextResponse } from "next/server";
+import * as fs from 'fs';
+import * as path from 'path';
+
+function logDebug(msg: string) {
+    try {
+        fs.appendFileSync(path.join(process.cwd(), 'debug-server.log'), new Date().toISOString() + ' ' + msg + '\n');
+    } catch (e) { console.error("Log failed", e); }
+}
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
 import { redis } from "@/lib/redis";
 import { generateBatchNotes } from "@/lib/gemini";
@@ -35,7 +42,9 @@ async function handler(request: NextRequest) {
     let body: any = null;
     try {
         body = await request.json();
+        logDebug("DEBUG: process-batch received body: " + JSON.stringify(body).substring(0, 200));
         const { jobId, batchIndex, manifest } = processBatchSchema.parse(body);
+        logDebug(`DEBUG: Processing job ${jobId}, batch ${batchIndex}, items ${manifest.length}`);
         const BATCH_SIZE = 20;
         const start = batchIndex * BATCH_SIZE;
         const end = Math.min(start + BATCH_SIZE, manifest.length);
@@ -79,12 +88,15 @@ async function handler(request: NextRequest) {
                 return getSignedUrl(s3Client, command, { expiresIn: 7200 }); // 2 hours
             })
         );
+        logDebug(`Generated ${signedUrls.length} signed URLs. First one: ${signedUrls[0]}`);
 
         // Call Gemini
         let batchResponse: BatchResponse | null = null;
         try {
             batchResponse = await generateBatchNotes(signedUrls);
+            logDebug(`Gemini Success! Received ${batchResponse?.pages?.length} pages.`);
         } catch (geminiError: any) {
+            logDebug("Gemini Error: " + geminiError.message + " stack: " + geminiError.stack);
             console.error(JSON.stringify({
                 event: 'GeminiGenerationFailed',
                 jobId,
