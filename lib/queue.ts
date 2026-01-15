@@ -41,14 +41,18 @@ export async function publishToQStash(url: string, body: any) {
         return { messageId: "skipped-no-token" };
     }
 
-});
-console.log(JSON.stringify({
-    event: 'QStashPublish',
-    url,
-    messageId: result.messageId,
-    timestamp: new Date().toISOString()
-}));
-return result;
+    const result = await qstash.publishJSON({
+        url,
+        body,
+        retries: 3,
+    });
+    console.log(JSON.stringify({
+        event: 'QStashPublish',
+        url,
+        messageId: result.messageId,
+        timestamp: new Date().toISOString()
+    }));
+    return result;
 }
 
 export async function queueEmailDelivery(payload: EmailJobPayload) {
