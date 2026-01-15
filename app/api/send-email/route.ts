@@ -7,35 +7,35 @@ import { getDownloadUrl } from "@/lib/s3";
 const resend = new Resend(process.env.RESEND_API_KEY || "re_mock");
 
 async function handler(request: NextRequest) {
-    try {
-        const body = await request.json();
-        const { jobId, email, pdfUrl, pdfKey } = body;
+  try {
+    const body = await request.json();
+    const { jobId, email, pdfUrl, pdfKey } = body;
 
-        // Validate required fields
-        if (!jobId || !email) {
-            return NextResponse.json(
-                { error: "Missing required fields" },
-                { status: 400 }
-            );
-        }
+    // Validate required fields
+    if (!jobId || !email) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
 
-        // Get fresh presigned URL (in case original expired)
-        const freshPdfUrl = pdfKey
-            ? await getDownloadUrl(pdfKey, 86400, "handscript-notes.pdf") // 24 hour expiry
-            : pdfUrl;
+    // Get fresh presigned URL (in case original expired)
+    const freshPdfUrl = pdfKey
+      ? await getDownloadUrl(pdfKey, 86400, "handscript-notes.pdf") // 24 hour expiry
+      : pdfUrl;
 
-        // Send email via Resend
-        // If API key is not valid, this will fail.
-        if (!process.env.RESEND_API_KEY) {
-            console.log("Mocking Email Send", JSON.stringify({ to: email, jobId }));
-            return NextResponse.json({ success: true, emailId: "mock_id" });
-        }
+    // Send email via Resend
+    // If API key is not valid, this will fail.
+    if (!process.env.RESEND_API_KEY) {
+      console.log("Mocking Email Send", JSON.stringify({ to: email, jobId }));
+      return NextResponse.json({ success: true, emailId: "mock_id" });
+    }
 
-        const { data, error } = await resend.emails.send({
-            from: process.env.EMAIL_FROM || "HandScript <noreply@handscript.com>",
-            to: email,
-            subject: "Your HandScript PDF is Ready! 📄",
-            html: `
+    const { data, error } = await resend.emails.send({
+      from: process.env.EMAIL_FROM || "HandScript <onboarding@resend.dev>",
+      to: email,
+      subject: "Your HandScript PDF is Ready! 📄",
+      html: `
         <!DOCTYPE html>
         <html>
         <head>
@@ -79,61 +79,61 @@ async function handler(request: NextRequest) {
         </body>
         </html>
       `,
-        });
+    });
 
-        if (error) {
-            console.error(
-                JSON.stringify({
-                    event: "EmailSendFailed",
-                    jobId,
-                    email,
-                    error: error.message,
-                    timestamp: new Date().toISOString(),
-                })
-            );
-            return NextResponse.json({ error: error.message }, { status: 500 });
-        }
-
-        // Update job with email status
-        const job: any = await redis.get(`job:${jobId}`);
-        if (job) {
-            job.emailStatus = "sent";
-            job.emailSentAt = Date.now();
-            job.emailId = data?.id;
-            await redis.set(`job:${jobId}`, job);
-        }
-
-        console.log(
-            JSON.stringify({
-                event: "EmailSent",
-                jobId,
-                email,
-                emailId: data?.id,
-                timestamp: new Date().toISOString(),
-            })
-        );
-
-        return NextResponse.json({ success: true, emailId: data?.id });
-    } catch (error) {
-        console.error("Email handler error:", error);
-        return NextResponse.json(
-            { error: "Internal server error" },
-            { status: 500 }
-        );
+    if (error) {
+      console.error(
+        JSON.stringify({
+          event: "EmailSendFailed",
+          jobId,
+          email,
+          error: error.message,
+          timestamp: new Date().toISOString(),
+        })
+      );
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Update job with email status
+    const job: any = await redis.get(`job:${jobId}`);
+    if (job) {
+      job.emailStatus = "sent";
+      job.emailSentAt = Date.now();
+      job.emailId = data?.id;
+      await redis.set(`job:${jobId}`, job);
+    }
+
+    console.log(
+      JSON.stringify({
+        event: "EmailSent",
+        jobId,
+        email,
+        emailId: data?.id,
+        timestamp: new Date().toISOString(),
+      })
+    );
+
+    return NextResponse.json({ success: true, emailId: data?.id });
+  } catch (error) {
+    console.error("Email handler error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
 }
 
 // Wrap with QStash signature verification for security
 // Only apply if key is present to avoid build failures
 let POST_HANDLER: any = handler;
-if (process.env.QSTASH_CURRENT_SIGNING_KEY) {
-    POST_HANDLER = verifySignatureAppRouter(handler);
+if (process.env.NODE_ENV === 'production' && process.env.QSTASH_CURRENT_SIGNING_KEY) {
+  POST_HANDLER = verifySignatureAppRouter(handler);
 } else {
-    // In production this should be a critical error or handled via env check at start
-    // For build contexts without secrets, we skip verification
-    if (process.env.NODE_ENV === 'production') {
-        console.warn("WARNING: QSTASH_CURRENT_SIGNING_KEY missing in production. Endpoint is unsecured.");
-    }
+  // In production this should be a critical error or handled via env check at start
+  // For build contexts without secrets, we skip verification
+  if (process.env.NODE_ENV === 'production') {
+    console.warn("WARNING: QSTASH_CURRENT_SIGNING_KEY missing in production. Endpoint is unsecured.");
+  }
 }
 
 export const POST = POST_HANDLER;

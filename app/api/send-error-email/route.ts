@@ -6,30 +6,30 @@ import { redis } from "@/lib/redis";
 const resend = new Resend(process.env.RESEND_API_KEY || "re_mock");
 
 async function handler(request: NextRequest) {
-    try {
-        const body = await request.json();
-        const { jobId, email, errorMessage } = body;
+  try {
+    const body = await request.json();
+    const { jobId, email, errorMessage } = body;
 
-        if (!jobId || !email) {
-            return NextResponse.json(
-                { error: "Missing required fields" },
-                { status: 400 }
-            );
-        }
+    if (!jobId || !email) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
 
-        if (!process.env.RESEND_API_KEY) {
-            console.log(
-                "Mocking Error Email Send",
-                JSON.stringify({ to: email, jobId })
-            );
-            return NextResponse.json({ success: true, emailId: "mock_id" });
-        }
+    if (!process.env.RESEND_API_KEY) {
+      console.log(
+        "Mocking Error Email Send",
+        JSON.stringify({ to: email, jobId })
+      );
+      return NextResponse.json({ success: true, emailId: "mock_id" });
+    }
 
-        const { data, error } = await resend.emails.send({
-            from: process.env.EMAIL_FROM || "HandScript <noreply@handscript.com>",
-            to: email,
-            subject: "Your HandScript Conversion Encountered an Issue ⚠️",
-            html: `
+    const { data, error } = await resend.emails.send({
+      from: process.env.EMAIL_FROM || "HandScript <onboarding@resend.dev>",
+      to: email,
+      subject: "Your HandScript Conversion Encountered an Issue ⚠️",
+      html: `
         <!DOCTYPE html>
         <html>
         <head>
@@ -58,17 +58,17 @@ async function handler(request: NextRequest) {
             <div class="error-box">
               <strong>What happened:</strong><br/>
               ${errorMessage ||
-                "An unexpected error occurred during processing."
-                }
+        "An unexpected error occurred during processing."
+        }
             </div>
             
             <p>Don't worry – this can happen occasionally due to complex handwriting, image quality issues, or temporary service disruptions.</p>
             
             <div style="text-align: center;">
               <a href="${process.env.VERCEL_URL
-                    ? `https://${process.env.VERCEL_URL}`
-                    : "https://handscript.app"
-                }" class="button">Try Again</a>
+          ? `https://${process.env.VERCEL_URL}`
+          : "https://handscript.app"
+        }" class="button">Try Again</a>
             </div>
             
             <p style="margin-top: 30px; font-size: 14px;">
@@ -88,53 +88,53 @@ async function handler(request: NextRequest) {
         </body>
         </html>
       `,
-        });
+    });
 
-        if (error) {
-            console.error(
-                JSON.stringify({
-                    event: "ErrorEmailSendFailed",
-                    jobId,
-                    email,
-                    error: error.message,
-                    timestamp: new Date().toISOString(),
-                })
-            );
-            return NextResponse.json({ error: error.message }, { status: 500 });
-        }
-
-        // Update job with error email status
-        const job: any = await redis.get(`job:${jobId}`);
-        if (job) {
-            job.errorEmailSent = true;
-            job.errorEmailSentAt = Date.now();
-            await redis.set(`job:${jobId}`, job);
-        }
-
-        console.log(
-            JSON.stringify({
-                event: "ErrorEmailSent",
-                jobId,
-                email,
-                emailId: data?.id,
-                timestamp: new Date().toISOString(),
-            })
-        );
-
-        return NextResponse.json({ success: true, emailId: data?.id });
-    } catch (error: any) {
-        console.error("Error email handler error:", error);
-        return NextResponse.json(
-            { error: "Internal server error" },
-            { status: 500 }
-        );
+    if (error) {
+      console.error(
+        JSON.stringify({
+          event: "ErrorEmailSendFailed",
+          jobId,
+          email,
+          error: error.message,
+          timestamp: new Date().toISOString(),
+        })
+      );
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Update job with error email status
+    const job: any = await redis.get(`job:${jobId}`);
+    if (job) {
+      job.errorEmailSent = true;
+      job.errorEmailSentAt = Date.now();
+      await redis.set(`job:${jobId}`, job);
+    }
+
+    console.log(
+      JSON.stringify({
+        event: "ErrorEmailSent",
+        jobId,
+        email,
+        emailId: data?.id,
+        timestamp: new Date().toISOString(),
+      })
+    );
+
+    return NextResponse.json({ success: true, emailId: data?.id });
+  } catch (error: any) {
+    console.error("Error email handler error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
 }
 
 // Wrap with QStash signature verification
 let POST_HANDLER: any = handler;
-if (process.env.QSTASH_CURRENT_SIGNING_KEY) {
-    POST_HANDLER = verifySignatureAppRouter(handler);
+if (process.env.NODE_ENV === 'production' && process.env.QSTASH_CURRENT_SIGNING_KEY) {
+  POST_HANDLER = verifySignatureAppRouter(handler);
 }
 
 export const POST = POST_HANDLER;
