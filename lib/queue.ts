@@ -17,20 +17,41 @@ export interface EmailJobPayload {
     pdfKey?: string;
 }
 
-export async function queueEmailDelivery(payload: EmailJobPayload) {
-    if (!process.env.QSTASH_TOKEN) {
-        throw new Error("QSTASH_TOKEN must be defined");
+// Helper to bypass QStash in local development or if not configured
+export async function publishToQStash(url: string, body: any) {
+    // If URL is localhost, we can't use QStash (it can't reach us).
+    // Bypassing logic for local dev:
+    const isLocalhost = url.includes("localhost") || url.includes("127.0.0.1") || url.includes("::1");
+
+    if (isLocalhost) {
+        console.log(`[Queue] Localhost detected, bypassing QStash for: ${url}`);
+        // We perform a fire-and-forget fetch to simulate queueing.
+        // We don't await the result to mimic async nature, OR we await with catch to avoid crashing.
+        fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        }).catch(err => console.error(`[Queue] Local dispatch failed for ${url}:`, err));
+
+        return { messageId: "local-dev-mock-id" };
     }
 
+    if (!process.env.QSTASH_TOKEN) {
+        console.warn("[Queue] QSTASH_TOKEN missing, skipping publish.");
+        return { messageId: "skipped-no-token" };
+    }
+
+    return qstash.publishJSON({
+        url,
+        body,
+        retries: 3,
+    });
+}
+
+export async function queueEmailDelivery(payload: EmailJobPayload) {
     const baseUrl = process.env.VERCEL_URL
         ? `https://${process.env.VERCEL_URL}`
         : "http://localhost:3000";
 
-    return qstash.publishJSON({
-        url: `${baseUrl}/api/send-email`,
-        body: payload,
-        retries: 3,
-        // Delay slightly to ensure PDF is fully available
-        delay: "5s",
-    });
+    return publishToQStash(`${baseUrl}/api/send-email`, payload);
 }

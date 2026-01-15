@@ -12,10 +12,12 @@ export default function Home() {
   const [state, setState] = useState<AppState>('upload');
   const [error, setError] = useState<string | null>(null);
   const [images, setImages] = useState<string[]>([]);
+  const [email, setEmail] = useState<string | undefined>(undefined);
 
-  const handleJobCreated = (id: string, extractedImages: string[]) => {
+  const handleJobCreated = (id: string, extractedImages: string[], userEmail?: string) => {
     setJobId(id);
     setImages(extractedImages);
+    setEmail(userEmail);
     setState('processing');
   };
 
@@ -31,6 +33,7 @@ export default function Home() {
   const reset = () => {
     setJobId(null);
     setImages([]);
+    setEmail(undefined);
     setState('upload');
     setError(null);
   };
@@ -57,6 +60,7 @@ export default function Home() {
           <Status
             jobId={jobId}
             images={images}
+            email={email}
             onComplete={handleComplete}
             onError={handleError}
             onReset={reset}

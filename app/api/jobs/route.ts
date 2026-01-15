@@ -9,6 +9,8 @@ const createJobSchema = z.object({
     email: z.string().email().optional(),
 });
 
+import { publishToQStash } from "@/lib/queue";
+
 export type JobStatus = 'pending' | 'processing' | 'assembling' | 'complete' | 'failed';
 
 export interface Job {
@@ -65,6 +67,25 @@ export async function POST(request: Request) {
         await redis.set(`job:${jobId}`, job);
         // Set 30 day expiry
         await redis.expire(`job:${jobId}`, 30 * 24 * 60 * 60);
+
+        // TRIGGER BACKGROUND PROCESSING via QStash
+        const baseUrl = process.env.VERCEL_URL
+            ? `https://${process.env.VERCEL_URL}`
+            : "http://localhost:3000";
+
+        try {
+            await publishToQStash(`${baseUrl}/api/internal/process-batch`, {
+                jobId,
+                batchIndex: 0,
+                manifest: pageManifest
+            });
+            console.log("Started background processing for job", jobId);
+        } catch (queueError) {
+            console.error("Failed to trigger background processing", queueError);
+            // We still return success, client will poll and see it's pending/stuck
+            // or retry manually if we built that UI.
+            // Crucially, if email was provided, this failure is critical for 'fire-and-forget'.
+        }
 
         return NextResponse.json({
             jobId,

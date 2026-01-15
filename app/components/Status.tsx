@@ -5,12 +5,13 @@ import { useState, useEffect, useRef } from 'react';
 interface StatusProps {
     jobId: string;
     images?: string[];
+    email?: string; // Add email prop
     onComplete: () => void;
     onError: (msg: string) => void;
     onReset: () => void;
 }
 
-export default function Status({ jobId, images, onComplete, onError, onReset }: StatusProps) {
+export default function Status({ jobId, images, email, onComplete, onError, onReset }: StatusProps) {
     const [status, setStatus] = useState<string>('initializing');
     const [progress, setProgress] = useState({ total: 1, completed: 0, failed: 0 });
     const [finalUrl, setFinalUrl] = useState<string | null>(null);
@@ -54,96 +55,33 @@ export default function Status({ jobId, images, onComplete, onError, onReset }: 
         return () => clearInterval(intervalId);
     }, [jobId, onComplete, onError]);
 
-    useEffect(() => {
-        if (images && images.length > 0 && !processingStarted.current && status !== 'complete') {
-            processingStarted.current = true;
+    // Processing is now handled server-side via QStash.
+    // We only poll for status updates here.
 
-            const processBatches = async () => {
-                const BATCH_SIZE = 20; // Increased to 20 thanks to Signed URLs & B2
-                const batches: { start: number, keys: string[] }[] = [];
+    // If email is provided, we can just show success immediately or let user leave
+    const showEmailConfirmation = !!email && status !== 'complete' && status !== 'failed';
 
-                // 'images' prop now contains B2 keys based on Upload.tsx changes
-                for (let i = 0; i < images.length; i += BATCH_SIZE) {
-                    batches.push({
-                        start: i,
-                        keys: images.slice(i, i + BATCH_SIZE)
-                    });
-                }
-
-                // Browser limit is roughly 6-10 per domain.
-                const CONCURRENCY_LIMIT = 5;
-
-                // Helper for concurrency
-                const pool = async () => {
-                    const results = [];
-                    const executing: Promise<any>[] = [];
-
-                    for (const batch of batches) {
-                        const p = fetch('/api/process-batch', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                jobId,
-                                startPageIndex: batch.start,
-                                keys: batch.keys
-                            })
-                        }).then(r => {
-                            if (!r.ok) {
-                                return r.json().then(errData => {
-                                    throw new Error(errData.details || `Batch failed: ${r.statusText}`);
-                                }).catch(e => {
-                                    // Fallback if json parsing fails
-                                    throw new Error(`Batch failed: ${r.statusText}`);
-                                });
-                            }
-                            return r.json();
-                        });
-
-                        results.push(p);
-                        const e: Promise<any> = p.then(() => executing.splice(executing.indexOf(e), 1));
-                        executing.push(e);
-
-                        if (executing.length >= CONCURRENCY_LIMIT) {
-                            await Promise.race(executing);
-                        }
-                    }
-                    return Promise.all(results);
-                };
-
-                try {
-                    await pool();
-                    // All batches sent and resolved
-                } catch (e: any) {
-                    console.error("Batch processing error", e);
-                    // Continue to polling? Or finalize anyway?
-                }
-            };
-
-            processBatches().catch(console.error);
-        }
-    }, [images, jobId, status]);
-
-    useEffect(() => {
-        if (
-            !hasTriggeredFinalize.current &&
-            progress.total > 0 &&
-            // Check if done
-            (progress.completed + progress.failed >= progress.total) &&
-            status === 'processing'
-        ) {
-            hasTriggeredFinalize.current = true;
-            (async () => {
-                try {
-                    setStatus('finalizing');
-                    const res = await fetch(`/api/jobs/${jobId}/finalize`, { method: 'POST' });
-                    if (!res.ok) throw new Error('Finalize failed');
-                    // Finalize should update status to complete, which polling will pick up
-                } catch (err: any) {
-                    onError(err.message);
-                }
-            })();
-        }
-    }, [progress, status, jobId, onError]);
+    if (showEmailConfirmation) {
+        return (
+            <div className="w-full text-center space-y-6 animate-in fade-in zoom-in duration-500">
+                <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto">
+                    <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                </div>
+                <h2 className="text-2xl font-bold">Conversion Started!</h2>
+                <p className="text-gray-600 dark:text-gray-300">
+                    Your PDF will be delivered to <strong>{email}</strong> in 1-2 minutes.
+                </p>
+                <p className="text-sm text-gray-500">
+                    You can safely close this tab now.
+                </p>
+                <button onClick={onReset} className="block w-full text-sm text-gray-500 hover:underline mt-8">
+                    Start another conversion
+                </button>
+            </div>
+        )
+    }
 
     if (finalUrl) {
         return (
@@ -154,6 +92,7 @@ export default function Status({ jobId, images, onComplete, onError, onReset }: 
                     </svg>
                 </div>
                 <h2 className="text-2xl font-bold">Conversion Complete!</h2>
+                {email && <p className="text-gray-500">Also sent to {email}</p>}
                 <a
                     href={finalUrl}
                     download="handscript-notes.pdf"
