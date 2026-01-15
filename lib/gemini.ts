@@ -10,7 +10,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // IMPORTANT: Gemini 2.0 does NOT support external URLs
 // Must use 2.5+ or 1.5 models. current: gemini-2.5-flash
-const ACTIVE_MODEL_NAME = 'gemini-2.5-flash';
+const ACTIVE_MODEL_NAME = 'gemini-1.5-flash';
 
 function cleanSchema(schema: any): any {
     if (typeof schema !== 'object' || schema === null) return schema;

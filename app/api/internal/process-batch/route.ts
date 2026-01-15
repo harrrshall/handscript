@@ -1,12 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import * as fs from 'fs';
-import * as path from 'path';
 
-function logDebug(msg: string) {
-    try {
-        fs.appendFileSync(path.join(process.cwd(), 'debug-server.log'), new Date().toISOString() + ' ' + msg + '\n');
-    } catch (e) { console.error("Log failed", e); }
-}
+import { NextRequest, NextResponse } from "next/server";
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
 import { redis } from "@/lib/redis";
 import { generateBatchNotes } from "@/lib/gemini";
@@ -34,6 +27,15 @@ const processBatchSchema = z.object({
     manifest: z.array(z.string()).min(1),
 });
 
+async function logToRedis(jobId: string, msg: string) {
+    try {
+        const logMsg = `${new Date().toISOString()} ${msg}`;
+        await redis.lpush(`job:${jobId}:logs`, logMsg);
+        await redis.ltrim(`job:${jobId}:logs`, 0, 49); // Keep last 50 logs
+        await redis.expire(`job:${jobId}:logs`, 24 * 60 * 60); // 24h expiry
+    } catch (e) { console.error("Redis log failed", e); }
+}
+
 async function handler(request: NextRequest) {
     const startTime = Date.now();
     const retryCount = parseInt(request.headers.get('Upstash-Retried') || '0');
@@ -42,30 +44,21 @@ async function handler(request: NextRequest) {
     let body: any = null;
     try {
         body = await request.json();
-        logDebug("DEBUG: process-batch received body: " + JSON.stringify(body).substring(0, 200));
         const { jobId, batchIndex, manifest } = processBatchSchema.parse(body);
-        logDebug(`DEBUG: Processing job ${jobId}, batch ${batchIndex}, items ${manifest.length}`);
-        const BATCH_SIZE = 20;
+
+        const BATCH_SIZE = 1; // Critical fix for Vercel 10s timeout
         const start = batchIndex * BATCH_SIZE;
         const end = Math.min(start + BATCH_SIZE, manifest.length);
         const keys = manifest.slice(start, end);
 
+        await logToRedis(jobId, `Starting batch ${batchIndex + 1}/${Math.ceil(manifest.length / BATCH_SIZE)} (Pages ${start}-${end - 1})`);
+
         if (keys.length === 0) {
-            // No more keys, processing complete for batches
-            // Trigger Finalize
             const baseUrl = process.env.VERCEL_URL
                 ? `https://${process.env.VERCEL_URL}`
                 : "http://localhost:3000";
 
             await publishToQStash(`${baseUrl}/api/jobs/${jobId}/finalize`, {});
-
-            console.log(
-                JSON.stringify({
-                    event: "BatchProcessingFinished",
-                    jobId,
-                    timestamp: new Date().toISOString(),
-                })
-            );
             return NextResponse.json({ success: true, status: "complete" });
         }
 
@@ -79,6 +72,7 @@ async function handler(request: NextRequest) {
             })
         );
 
+        // Generate signed URLs
         const signedUrls = await Promise.all(
             keys.map(async (key) => {
                 const command = new GetObjectCommand({
@@ -88,15 +82,14 @@ async function handler(request: NextRequest) {
                 return getSignedUrl(s3Client, command, { expiresIn: 7200 }); // 2 hours
             })
         );
-        logDebug(`Generated ${signedUrls.length} signed URLs. First one: ${signedUrls[0]}`);
 
         // Call Gemini
         let batchResponse: BatchResponse | null = null;
         try {
             batchResponse = await generateBatchNotes(signedUrls);
-            logDebug(`Gemini Success! Received ${batchResponse?.pages?.length} pages.`);
+            await logToRedis(jobId, `Gemini success for batch ${batchIndex}`);
         } catch (geminiError: any) {
-            logDebug("Gemini Error: " + geminiError.message + " stack: " + geminiError.stack);
+            await logToRedis(jobId, `Gemini error for batch ${batchIndex}: ${geminiError.message}`);
             console.error(JSON.stringify({
                 event: 'GeminiGenerationFailed',
                 jobId,
@@ -138,27 +131,24 @@ async function handler(request: NextRequest) {
 
         await redis.mset(msetObj);
         await redis.incrby(`job:${jobId}:completed`, keys.length);
+        await logToRedis(jobId, `Completed batch ${batchIndex}. Progress: ${start + keys.length}/${manifest.length}`);
 
         // Trigger Next Batch recursively
         const nextBatchIndex = batchIndex + 1;
         const totalBatches = Math.ceil(manifest.length / BATCH_SIZE);
 
-        if (nextBatchIndex < totalBatches) {
-            const baseUrl = process.env.VERCEL_URL
-                ? `https://${process.env.VERCEL_URL}`
-                : "http://localhost:3000";
+        const baseUrl = process.env.VERCEL_URL
+            ? `https://${process.env.VERCEL_URL}`
+            : "http://localhost:3000";
 
+        if (nextBatchIndex < totalBatches) {
             await publishToQStash(`${baseUrl}/api/internal/process-batch`, {
                 jobId,
                 batchIndex: nextBatchIndex,
                 manifest
             });
         } else {
-            // This was the last batch. Trigger finalize.
-            const baseUrl = process.env.VERCEL_URL
-                ? `https://${process.env.VERCEL_URL}`
-                : "http://localhost:3000";
-
+            await logToRedis(jobId, "All batches sent to Gemini. Finalizing...");
             await publishToQStash(`${baseUrl}/api/jobs/${jobId}/finalize`, {});
         }
 
@@ -180,11 +170,13 @@ async function handler(request: NextRequest) {
             timestamp: new Date().toISOString()
         }));
 
-        // If this is the last retry, mark job as failed and notify user
-        if (retryCount >= maxRetries) {
+        if (body?.jobId) {
+            await logToRedis(body.jobId, `Batch ${body.batchIndex} failed: ${error.message}`);
+        }
+
+        if (retryCount >= maxRetries && body?.jobId) {
             try {
-                const body = await request.clone().json();
-                const { jobId } = body;
+                const jobId = body.jobId;
                 const job: any = await redis.get(`job:${jobId}`);
 
                 if (job && job.email) {
@@ -195,7 +187,7 @@ async function handler(request: NextRequest) {
                     await queueErrorEmail({
                         jobId,
                         email: job.email,
-                        errorMessage: "We couldn't process your notes after multiple attempts. Please try again with a clearer scan."
+                        errorMessage: "We couldn't process your notes after multiple attempts."
                     });
                 }
             } catch (notifyError) {
@@ -210,15 +202,9 @@ async function handler(request: NextRequest) {
     }
 }
 
-// Wrap with QStash signature verification for security
-// Only apply if key is present to avoid build failures
 let POST_HANDLER: any = handler;
 if (process.env.NODE_ENV === 'production' && process.env.QSTASH_CURRENT_SIGNING_KEY) {
     POST_HANDLER = verifySignatureAppRouter(handler);
-} else {
-    if (process.env.NODE_ENV === 'production') {
-        console.warn("WARNING: QSTASH_CURRENT_SIGNING_KEY missing in internal route.");
-    }
 }
 
 export const POST = POST_HANDLER;

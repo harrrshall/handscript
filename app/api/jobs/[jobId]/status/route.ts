@@ -32,6 +32,8 @@ export async function GET(
             }
         }
 
+        const logs = await redis.lrange(`job:${jobId}:logs`, 0, -1) || [];
+
         return NextResponse.json({
             status: job.status,
             progress: {
@@ -39,6 +41,7 @@ export async function GET(
                 completed: job.completedPages,
                 failed: job.failedPages.length,
             },
+            logs: logs.reverse(), // Show oldest to newest
             finalPdfUrl: job.finalPdfUrl,
             error: job.error,
         }, {
