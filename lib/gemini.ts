@@ -72,6 +72,8 @@ TRANSCRIPTION RULES:
  * @param signedUrls Pre-signed URLs to images in B2 (must be valid for processing duration)
  * @returns Parsed BatchResponse object
  */
+// lib/gemini.ts
+
 export async function generateBatchNotes(signedUrls: string[]): Promise<BatchResponse> {
     try {
         // OPTIMIZED: Use fileData with fileUri instead of inlineData

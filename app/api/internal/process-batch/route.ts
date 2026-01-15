@@ -36,7 +36,6 @@ async function handler(request: NextRequest) {
     try {
         body = await request.json();
         const { jobId, batchIndex, manifest } = processBatchSchema.parse(body);
-
         const BATCH_SIZE = 20;
         const start = batchIndex * BATCH_SIZE;
         const end = Math.min(start + BATCH_SIZE, manifest.length);
@@ -71,7 +70,6 @@ async function handler(request: NextRequest) {
             })
         );
 
-        // Generate signed URLs
         const signedUrls = await Promise.all(
             keys.map(async (key) => {
                 const command = new GetObjectCommand({
