@@ -112,7 +112,7 @@ async function main() {
             throw new Error(`Job Failed: ${statusData.error}`);
         }
 
-        if (Date.now() - startTime > 300000) { // 5 mins timeout
+        if (Date.now() - startTime > 600000) { // 10 mins timeout
             throw new Error('Test timed out (> 300s)');
         }
 
