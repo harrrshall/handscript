@@ -8,7 +8,7 @@ import { z } from "zod";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { BatchResponse, Page } from "@/lib/schema";
-import { publishToQStash } from "@/lib/queue";
+import { publishToQStash, queueErrorEmail } from "@/lib/queue";
 
 const s3Client = new S3Client({
     endpoint: process.env.B2_ENDPOINT?.startsWith("http")
@@ -29,6 +29,9 @@ const processBatchSchema = z.object({
 
 async function handler(request: NextRequest) {
     const startTime = Date.now();
+    const retryCount = parseInt(request.headers.get('Upstash-Retried') || '0');
+    const maxRetries = 3;
+
     try {
         const body = await request.json();
         const { jobId, batchIndex, manifest } = processBatchSchema.parse(body);
@@ -149,6 +152,30 @@ async function handler(request: NextRequest) {
 
     } catch (error: any) {
         console.error("Batch processing error", error);
+
+        // If this is the last retry, mark job as failed and notify user
+        if (retryCount >= maxRetries) {
+            try {
+                const body = await request.clone().json();
+                const { jobId } = body;
+                const job: any = await redis.get(`job:${jobId}`);
+
+                if (job && job.email) {
+                    job.status = 'failed';
+                    job.error = `Processing failed after ${maxRetries} retries: ${error.message}`;
+                    await redis.set(`job:${jobId}`, job);
+
+                    await queueErrorEmail({
+                        jobId,
+                        email: job.email,
+                        errorMessage: "We couldn't process your notes after multiple attempts. Please try again with a clearer scan."
+                    });
+                }
+            } catch (notifyError) {
+                console.error("Failed to notify user of error:", notifyError);
+            }
+        }
+
         return NextResponse.json(
             { error: error.message },
             { status: 500 }

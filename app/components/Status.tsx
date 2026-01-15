@@ -20,6 +20,10 @@ export default function Status({ jobId, images, email, onComplete, onError, onRe
     const processingStarted = useRef(false);
 
     useEffect(() => {
+        if (email) {
+            return;
+        }
+
         let intervalId: NodeJS.Timeout;
         const POLLING_INTERVAL = 1000;
 
@@ -59,25 +63,25 @@ export default function Status({ jobId, images, email, onComplete, onError, onRe
     // We only poll for status updates here.
 
     // If email is provided, we can just show success immediately or let user leave
-    const showEmailConfirmation = !!email && status !== 'complete' && status !== 'failed';
+    const showEmailConfirmation = !!email;
 
     if (showEmailConfirmation) {
         return (
             <div className="w-full text-center space-y-6 animate-in fade-in zoom-in duration-500">
-                <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto">
+                <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto">
                     <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                 </div>
-                <h2 className="text-2xl font-bold">Conversion Started!</h2>
+                <h2 className="text-2xl font-bold">You're All Set!</h2>
                 <p className="text-gray-600 dark:text-gray-300">
-                    Your PDF will be delivered to <strong>{email}</strong> in 1-2 minutes.
+                    Your PDF will be delivered to <strong>{email}</strong> within 1-2 minutes.
                 </p>
                 <p className="text-sm text-gray-500">
-                    You can safely close this tab now.
+                    You can safely close this page. We'll handle everything from here.
                 </p>
-                <button onClick={onReset} className="block w-full text-sm text-gray-500 hover:underline mt-8">
-                    Start another conversion
+                <button onClick={onReset} className="mt-6 px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors">
+                    Convert Another File
                 </button>
             </div>
         )

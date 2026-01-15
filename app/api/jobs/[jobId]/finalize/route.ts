@@ -3,7 +3,7 @@ import { redis } from '@/lib/redis';
 import { uploadFile, deleteFile, getDownloadUrl } from '@/lib/s3';
 import { wrapWithTemplate } from '@/lib/html-template';
 import { PDFDocument } from 'pdf-lib';
-import { queueEmailDelivery } from '@/lib/queue';
+import { queueEmailDelivery, queueErrorEmail } from '@/lib/queue';
 
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 
@@ -361,6 +361,26 @@ export async function POST(
             stack: error instanceof Error ? error.stack : undefined,
             timestamp: new Date().toISOString()
         }));
+
+        // Mark job as failed and send error email
+        try {
+            const job: any = await redis.get(`job:${jobId}`);
+            if (job && job.email) {
+                job.status = 'failed';
+                job.error = String(error);
+                await redis.set(`job:${jobId}`, job);
+
+                // Queue error notification email
+                await queueErrorEmail({
+                    jobId,
+                    email: job.email,
+                    errorMessage: "PDF generation failed. This may be due to complex content or a temporary issue."
+                });
+            }
+        } catch (emailError) {
+            console.error("Failed to queue error email:", emailError);
+        }
+
         return NextResponse.json({ error: 'Finalize failed', details: String(error) }, { status: 500 });
     }
 }

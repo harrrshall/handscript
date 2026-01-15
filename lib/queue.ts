@@ -55,3 +55,17 @@ export async function queueEmailDelivery(payload: EmailJobPayload) {
 
     return publishToQStash(`${baseUrl}/api/send-email`, payload);
 }
+
+export interface ErrorEmailPayload {
+    jobId: string;
+    email: string;
+    errorMessage: string;
+}
+
+export async function queueErrorEmail(payload: ErrorEmailPayload) {
+    const baseUrl = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000";
+
+    return publishToQStash(`${baseUrl}/api/send-error-email`, payload);
+}
