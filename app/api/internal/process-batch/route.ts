@@ -32,8 +32,9 @@ async function handler(request: NextRequest) {
     const retryCount = parseInt(request.headers.get('Upstash-Retried') || '0');
     const maxRetries = 3;
 
+    let body: any = null;
     try {
-        const body = await request.json();
+        body = await request.json();
         const { jobId, batchIndex, manifest } = processBatchSchema.parse(body);
 
         const BATCH_SIZE = 20;
@@ -85,8 +86,16 @@ async function handler(request: NextRequest) {
         let batchResponse: BatchResponse | null = null;
         try {
             batchResponse = await generateBatchNotes(signedUrls);
-        } catch (geminiError) {
-            console.error(`Gemini failed for batch ${batchIndex}`, geminiError);
+        } catch (geminiError: any) {
+            console.error(JSON.stringify({
+                event: 'GeminiGenerationFailed',
+                jobId,
+                batchIndex,
+                error: geminiError.message,
+                stack: geminiError.stack,
+                retryCount,
+                timestamp: new Date().toISOString()
+            }));
             throw geminiError; // Let QStash retry
         }
 
@@ -151,7 +160,15 @@ async function handler(request: NextRequest) {
         });
 
     } catch (error: any) {
-        console.error("Batch processing error", error);
+        console.error(JSON.stringify({
+            event: 'BatchProcessingFailed',
+            jobId: body?.jobId || 'unknown',
+            batchIndex: body?.batchIndex,
+            error: error.message,
+            stack: error.stack,
+            retryCount,
+            timestamp: new Date().toISOString()
+        }));
 
         // If this is the last retry, mark job as failed and notify user
         if (retryCount >= maxRetries) {

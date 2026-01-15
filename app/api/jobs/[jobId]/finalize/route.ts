@@ -178,6 +178,7 @@ export async function POST(
                     jobId,
                     pageIndex: i,
                     error: String(renderError),
+                    endpoint: modalEndpoint,
                     timestamp: new Date().toISOString()
                 }));
 
