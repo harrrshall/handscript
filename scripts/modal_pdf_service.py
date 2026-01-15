@@ -45,11 +45,13 @@ def get_s3_client():
 
 @app.function(
     image=image,
-    memory=1024,
+    concurrency_limit=10,
+    container_idle_timeout=300,
+    timeout=600,
     cpu=1.0,
-    secrets=[modal.Secret.from_name("b2-credentials")]  # Inject B2 credentials
+    secrets=[modal.Secret.from_dotenv()]  # Inject credentials from local .env
 )
-@modal.web_endpoint(method="POST")
+@modal.fastapi_endpoint(method="POST")
 async def render_pdf(request: PDFRequest):
     from playwright.async_api import async_playwright
     import base64
@@ -117,6 +119,6 @@ async def render_pdf(request: PDFRequest):
 
 # Health check endpoint
 @app.function(image=image)
-@modal.web_endpoint(method="GET")
+@modal.fastapi_endpoint(method="GET")
 async def health():
     return {"status": "healthy", "service": "handscript-pdf"}
