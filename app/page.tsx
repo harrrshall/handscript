@@ -133,7 +133,7 @@ export default function Home() {
 
       {/* Footer - Minimal */}
       <footer className="relative z-10 py-3 text-center">
-        <p className="text-[10px] sm:text-xs text-cool-grey/50 font-light">© 2026 NoteConverter</p>
+        <p className="text-[10px] sm:text-xs text-cool-grey/50 font-light">© 2026 Handscript</p>
       </footer>
     </div>
   );

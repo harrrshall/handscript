@@ -8,7 +8,7 @@ export default function Header() {
                     {/* Logo - Centered */}
                     <div className="flex items-center gap-2 sm:gap-3">
                         <span className="material-symbols-outlined text-xl sm:text-2xl text-primary">edit_document</span>
-                        <span className="font-display font-bold text-lg sm:text-xl text-slate-grey tracking-tight">NoteConverter</span>
+                        <span className="font-display font-bold text-lg sm:text-xl text-slate-grey tracking-tight">Handscript</span>
                     </div>
                 </div>
             </div>

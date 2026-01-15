@@ -4,7 +4,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "NoteConverter - Transform Handwriting into Professional Assets",
+  title: "Handscript - Transform Handwriting into Professional Assets",
   description: "The premium converter for scholars. Turn sketches and notes into searchable, citation-ready PDFs with 99% accuracy.",
 };
 
