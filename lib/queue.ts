@@ -118,7 +118,7 @@ export async function batchPublishToQStash(messages: BatchMessage[]) {
     // Use QStash batch API
     const batchMessages = messages.map(msg => ({
         destination: msg.destination,
-        body: JSON.stringify(msg.body),
+        body: msg.body,
         headers: {
             "Content-Type": "application/json",
             ...msg.headers
