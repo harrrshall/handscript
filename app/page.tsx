@@ -89,7 +89,7 @@ export default function Home() {
             {/* Hero - Compact */}
             <div className="text-center mb-4 sm:mb-6">
               <h1 className="font-display text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-slate-grey leading-tight tracking-tight mb-2 sm:mb-3">
-                Transform Handwriting <span className="text-cool-grey italic font-normal">into</span> Professional Assets
+                Transform Handwriting <span className="text-cool-grey italic font-normal">into</span> Typed Notes
               </h1>
               <p className="text-xs sm:text-sm md:text-base text-cool-grey font-light">
                 Turn notes into searchable, citation-ready PDFs with 99% accuracy.
