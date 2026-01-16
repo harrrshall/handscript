@@ -115,9 +115,9 @@ export async function batchPublishToQStash(messages: BatchMessage[]) {
         return { results: messages.map((_, i) => ({ messageId: `skipped-no-token-${i}` })) };
     }
 
-    // Use QStash batch API
+    // Use QStash batch API - SDK expects 'url' not 'destination'
     const batchMessages = messages.map(msg => ({
-        destination: msg.destination,
+        url: msg.destination,
         body: msg.body,
         headers: {
             "Content-Type": "application/json",
