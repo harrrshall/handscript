@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
-import { Resend } from "resend";
 import { redis } from "@/lib/redis";
 import { getDownloadUrl } from "@/lib/s3";
 import { logger, metrics } from "@/lib/logger";
 import { env } from "@/lib/env";
-
-const resend = new Resend(env.RESEND_API_KEY || "re_mock");
 
 async function handler(request: NextRequest) {
   let jobId: string | undefined;
@@ -40,19 +37,11 @@ async function handler(request: NextRequest) {
     }
 
     // Call Gmail utility
-    // We import dynamically to avoid circular deps if any, but standard import is fine.
-    // Actually using the imported one.
+    logger.info("AttemptingGmailSend", { jobId, to: email });
 
-    // Import helper (must be at top level usually, but here we can just replace the logic)
-    // Since I can't change imports easily with replace_file_content without rewriting the whole file,
-    // I will use a different strategy: I'll rewrite the imports and the handler body.
-    // Wait, replace_file_content is okay for blocks.
+    const { sendEmail } = await import('@/lib/mailer');
 
-    // Let's rewrite the core sending block.    
-
-    const { sendGmail } = await import('@/lib/mailer');
-
-    const result = await sendGmail({
+    const result = await sendEmail({
       to: email,
       subject: "Your HandScript PDF is Ready! 📄",
       html: `

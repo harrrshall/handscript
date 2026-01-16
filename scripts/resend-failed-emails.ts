@@ -39,7 +39,7 @@ async function main() {
         // Ensure cursor is a number for the SDK if needed, or string if accepted. 
         // Upstash HTTP API returns string cursors. SDK might expect number.
         // Let's try parsing to ensure we don't pass weird object.
-        const numCursor = typeof cursor === 'string' ? parseInt(cursor) : cursor;
+        const numCursor: number = typeof cursor === 'string' ? parseInt(cursor, 10) : cursor;
 
         const result = await redis.scan(numCursor, { match: 'job:*', count: 5000 });
         cursor = result[0];
@@ -48,7 +48,7 @@ async function main() {
         jobKeys.push(...keys);
 
         process.stdout.write(`\rFound ${jobKeys.length} jobs... (Cursor: ${cursor})`);
-    } while (cursor !== 0 && cursor !== '0');
+    } while (cursor !== '0');
     console.log('\nScan complete.');
 
     const failedEmails: { job: Job; pdfUrl?: string }[] = [];

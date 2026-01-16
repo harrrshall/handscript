@@ -30,7 +30,7 @@ interface SendEmailParams {
     html: string;
 }
 
-export async function sendGmail(params: SendEmailParams) {
+export async function sendEmail(params: SendEmailParams) {
     try {
         const mailer = getTransporter();
         const info = await mailer.sendMail({
