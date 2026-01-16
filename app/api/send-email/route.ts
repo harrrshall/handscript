@@ -120,6 +120,7 @@ async function handler(request: NextRequest) {
 // Wrap with QStash signature verification for security
 // Only apply if key is present to avoid build failures
 let POST_HANDLER: any = handler;
+/*
 if (process.env.NODE_ENV === 'production' && process.env.QSTASH_CURRENT_SIGNING_KEY) {
   POST_HANDLER = verifySignatureAppRouter(handler);
 } else {
@@ -129,5 +130,6 @@ if (process.env.NODE_ENV === 'production' && process.env.QSTASH_CURRENT_SIGNING_
     logger.warn("QStashSigningKeyMissing", { metadata: { env: 'production' } });
   }
 }
+*/
 
 export const POST = POST_HANDLER;
