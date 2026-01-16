@@ -26,15 +26,27 @@ async function handler(request: NextRequest) {
       ? await getDownloadUrl(pdfKey, 86400, "handscript-notes.pdf") // 24 hour expiry
       : pdfUrl;
 
-    // Send email via Resend
-    // If API key is not valid, this will fail.
-    if (!env.RESEND_API_KEY) {
-      logger.info("MockingEmailSend", { jobId, metadata: { to: email } });
-      return NextResponse.json({ success: true, emailId: "mock_id" });
+    // Send email via Gmail SMTP
+    if (!env.GMAIL_USER || !env.GMAIL_APP_PASSWORD) {
+      // Fallback for missing keys (or dev)
+      logger.warn("GmailCredentialsMissing", { jobId, metadata: { to: email } });
+      return NextResponse.json({ success: true, emailId: "mock_id_no_creds" });
     }
 
-    const { data, error } = await resend.emails.send({
-      from: env.EMAIL_FROM || "HandScript <onboarding@resend.dev>",
+    // Call Gmail utility
+    // We import dynamically to avoid circular deps if any, but standard import is fine.
+    // Actually using the imported one.
+
+    // Import helper (must be at top level usually, but here we can just replace the logic)
+    // Since I can't change imports easily with replace_file_content without rewriting the whole file,
+    // I will use a different strategy: I'll rewrite the imports and the handler body.
+    // Wait, replace_file_content is okay for blocks.
+
+    // Let's rewrite the core sending block.    
+
+    const { sendGmail } = await import('@/lib/mailer');
+
+    const result = await sendGmail({
       to: email,
       subject: "Your HandScript PDF is Ready! 📄",
       html: `
@@ -80,36 +92,35 @@ async function handler(request: NextRequest) {
           </div>
         </body>
         </html>
-      `,
+      `
     });
-
-    if (error) {
-      logger.error("EmailSendFailed", {
-        jobId,
-        metadata: { email, error: error.message }
-      });
-      await metrics.increment("email_errors");
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
 
     // Update job with email status
     const job: any = await redis.get(`job:${jobId}`);
     if (job) {
       job.emailStatus = "sent";
       job.emailSentAt = Date.now();
-      job.emailId = data?.id;
+      job.emailId = result.messageId;
       await redis.set(`job:${jobId}`, job);
     }
 
     logger.info("EmailSent", {
       jobId,
-      metadata: { email, emailId: data?.id }
+      metadata: { email, emailId: result.messageId }
     });
     await metrics.increment("emails_sent");
 
-    return NextResponse.json({ success: true, emailId: data?.id });
+    return NextResponse.json({ success: true, emailId: result.messageId });
   } catch (error: any) {
     logger.error("EmailHandlerError", { error: error.message, stack: error.stack });
+
+    // Log failure specifically
+    logger.error("EmailSendFailed", {
+      jobId,
+      metadata: { email, error: error.message }
+    });
+    await metrics.increment("email_errors");
+
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

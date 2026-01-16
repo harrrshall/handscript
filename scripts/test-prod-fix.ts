@@ -48,7 +48,11 @@ async function main() {
     const jobRes = await fetch(BASE_URL + '/api/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pageCount: 1, pageManifest: [manifestKey] })
+        body: JSON.stringify({
+            pageCount: 1,
+            pageManifest: [manifestKey],
+            email: 'cybernovascnn@gmail.com'
+        })
     });
 
     if (!jobRes.ok) throw new Error('Job creation failed: ' + await jobRes.text());

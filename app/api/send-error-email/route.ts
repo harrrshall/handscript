@@ -20,15 +20,21 @@ async function handler(request: NextRequest) {
       );
     }
 
-    if (!env.RESEND_API_KEY) {
-      logger.info("MockingErrorEmailSend", { jobId, metadata: { to: email } });
-      return NextResponse.json({ success: true, emailId: "mock_id" });
+    // Send email via Gmail SMTP
+    if (!env.GMAIL_USER || !env.GMAIL_APP_PASSWORD) {
+      // Fallback for missing keys (or dev)
+      logger.warn("GmailCredentialsMissing", { jobId, metadata: { to: email } });
+      return NextResponse.json({ success: true, emailId: "mock_id_no_creds" });
     }
 
+    // Call Gmail utility
+    const { sendGmail } = await import('@/lib/mailer');
     const baseUrl = getBaseUrl();
 
-    const { data, error } = await resend.emails.send({
-      from: env.EMAIL_FROM || "HandScript <onboarding@resend.dev>",
+    // Note: error handling is slightly different as sendGmail throws on error, 
+    // whereas Resend returns { error } object. We wrap in try block (already done at top level).
+
+    const result = await sendGmail({
       to: email,
       subject: "Your HandScript Conversion Encountered an Issue ⚠️",
       html: `
@@ -84,17 +90,12 @@ async function handler(request: NextRequest) {
           </div>
         </body>
         </html>
-      `,
+      `
     });
 
-    if (error) {
-      logger.error("ErrorEmailSendFailed", {
-        jobId,
-        metadata: { email, error: error.message }
-      });
-      await metrics.increment("email_errors");
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    // Code below handles success case naturally
+    // If sendGmail throws, it goes to catch block at line 114
+
 
     // Update job with error email status
     const job: any = await redis.get(`job:${jobId}`);
@@ -106,11 +107,11 @@ async function handler(request: NextRequest) {
 
     logger.info("ErrorEmailSent", {
       jobId,
-      metadata: { email, emailId: data?.id }
+      metadata: { email, emailId: result.messageId }
     });
     await metrics.increment("error_emails_sent");
 
-    return NextResponse.json({ success: true, emailId: data?.id });
+    return NextResponse.json({ success: true, emailId: result.messageId });
   } catch (error: any) {
     logger.error("ErrorEmailHandlerError", { error: error.message, stack: error.stack });
     return NextResponse.json(

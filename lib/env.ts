@@ -23,6 +23,8 @@ const envSchema = z.object({
     // Email
     RESEND_API_KEY: z.string().optional(),
     EMAIL_FROM: z.string().optional(),
+    GMAIL_USER: z.string().optional(),
+    GMAIL_APP_PASSWORD: z.string().optional(),
 
     // PDF Rendering
     MODAL_PDF_ENDPOINT: z.string().url().optional(),
