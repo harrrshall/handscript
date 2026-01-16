@@ -75,7 +75,7 @@ async function handler(request: NextRequest) {
             
             <div class="footer">
               <p>Job ID: ${jobId}</p>
-              <p>© 2026 HandScript. Powered by Gemini AI.</p>
+              <p>made by <a href="https://harshalsingh.vercel.app" style="color: #008080; text-decoration: none;">HARSHAL</a>. Powered by Gemini AI.</p>
             </div>
           </div>
         </body>

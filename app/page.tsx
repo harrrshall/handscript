@@ -134,7 +134,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="relative z-10 py-4 sm:py-3 text-center safe-area-inset">
-        <p className="text-[10px] sm:text-xs text-cool-grey/40 font-light tracking-wide">© 2026 Handscript</p>
+        <p className="text-[10px] sm:text-xs text-cool-grey/40 font-light tracking-wide">made by <a href="https://harshalsingh.vercel.app" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors underline underline-offset-2">HARSHAL</a></p>
       </footer>
     </div>
   );
