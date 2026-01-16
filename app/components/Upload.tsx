@@ -104,8 +104,8 @@ export default function Upload({ onJobCreated, onError }: UploadProps) {
     };
 
     return (
-        <div className="w-full max-w-md">
-            <div className="bg-white rounded-xl shadow-soft overflow-hidden border border-slate-200/50 ring-1 ring-slate-900/5">
+        <div className="w-full max-w-md px-2 sm:px-0">
+            <div className="card-premium rounded-2xl overflow-hidden">
                 <div className="p-4 sm:p-6">
                     {isProcessing ? (
                         <div className="space-y-3">
@@ -162,16 +162,16 @@ export default function Upload({ onJobCreated, onError }: UploadProps) {
                                 <button
                                     onClick={handleConvert}
                                     disabled={!isFormValid}
-                                    className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition-all ${isFormValid
-                                            ? 'text-white bg-primary hover:bg-primary/90 shadow-md shadow-primary/20'
-                                            : 'text-cool-grey/50 bg-slate-100 cursor-not-allowed'
+                                    className={`w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 ${isFormValid
+                                        ? 'text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/15 hover:shadow-primary/25 hover:-translate-y-0.5 btn-primary'
+                                        : 'text-cool-grey/50 bg-slate-100 cursor-not-allowed'
                                         }`}
                                 >
                                     <span className="material-symbols-outlined text-base">auto_fix_high</span>
                                     Convert to PDF
                                 </button>
                                 <p className="text-center text-[10px] text-cool-grey/50 flex items-center justify-center gap-1">
-                                    <span className="material-symbols-outlined text-[12px]">lock</span> Secure 256-bit encryption
+                                    <span className="material-symbols-outlined text-[12px]">lock</span> handscriptnotes.vercel.app
                                 </p>
                             </div>
                         </>

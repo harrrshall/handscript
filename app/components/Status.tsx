@@ -64,7 +64,7 @@ export default function Status({ jobId, images, email, onComplete, onError, onRe
 
     if (showEmailConfirmation) {
         return (
-            <div className="w-full bg-white rounded-2xl shadow-soft p-12 text-center space-y-6 border border-white/60 ring-1 ring-slate-900/5">
+            <div className="w-full card-premium rounded-2xl p-8 sm:p-12 text-center space-y-6">
                 <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
                     <span className="material-symbols-outlined text-green-600 text-4xl">check_circle</span>
                 </div>
@@ -87,7 +87,7 @@ export default function Status({ jobId, images, email, onComplete, onError, onRe
 
     if (finalUrl) {
         return (
-            <div className="w-full bg-white rounded-2xl shadow-soft p-12 text-center space-y-6 border border-white/60 ring-1 ring-slate-900/5">
+            <div className="w-full card-premium rounded-2xl p-8 sm:p-12 text-center space-y-6">
                 <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
                     <span className="material-symbols-outlined text-green-600 text-4xl">check_circle</span>
                 </div>
@@ -111,7 +111,7 @@ export default function Status({ jobId, images, email, onComplete, onError, onRe
     const percent = Math.round((progress.completed / progress.total) * 100);
 
     return (
-        <div className="w-full bg-white rounded-2xl shadow-soft p-12 border border-white/60 ring-1 ring-slate-900/5 space-y-6">
+        <div className="w-full card-premium rounded-2xl p-8 sm:p-12 space-y-6">
             <div className="flex justify-between items-end">
                 <div>
                     <h3 className="text-xl font-display font-bold text-slate-grey capitalize">{status.replace('_', ' ')}</h3>

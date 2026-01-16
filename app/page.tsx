@@ -73,15 +73,16 @@ export default function Home() {
   }
 
   return (
-    <div className="bg-background-light h-screen flex flex-col relative overflow-hidden">
-      {/* Background patterns */}
-      <div className="fixed inset-0 z-0 pointer-events-none bg-grid opacity-20"></div>
+    <div className="bg-background-light min-h-screen flex flex-col relative overflow-hidden bg-noise">
+      {/* Background layers */}
+      <div className="fixed inset-0 z-0 pointer-events-none bg-grid opacity-30"></div>
       <div className="fixed inset-0 z-0 pointer-events-none hero-wash"></div>
+      <div className="fixed inset-0 z-0 pointer-events-none bg-vignette"></div>
 
       <Header />
 
-      {/* Main Content - Flex grow to fill available space */}
-      <main className="flex-1 flex flex-col items-center justify-center relative z-10 pt-16 sm:pt-20 px-4">
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col items-center justify-center relative z-10 pt-16 sm:pt-20 px-4 safe-area-inset">
 
         {state === 'upload' && (
           <div className="w-full max-w-xl flex flex-col items-center">
@@ -131,9 +132,9 @@ export default function Home() {
         )}
       </main>
 
-      {/* Footer - Minimal */}
-      <footer className="relative z-10 py-3 text-center">
-        <p className="text-[10px] sm:text-xs text-cool-grey/50 font-light">© 2026 Handscript</p>
+      {/* Footer */}
+      <footer className="relative z-10 py-4 sm:py-3 text-center safe-area-inset">
+        <p className="text-[10px] sm:text-xs text-cool-grey/40 font-light tracking-wide">© 2026 Handscript</p>
       </footer>
     </div>
   );
