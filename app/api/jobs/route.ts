@@ -104,6 +104,16 @@ export async function POST(request: Request) {
         // Set 30 day expiry
         await redis.expire(`job:${jobId}`, 30 * 24 * 60 * 60);
 
+        // Collect email for leads/marketing (Set ensures uniqueness)
+        if (email) {
+            try {
+                await redis.sadd('collected_emails', email);
+            } catch (err) {
+                // Non-blocking error
+                console.warn('Failed to collect email', err);
+            }
+        }
+
         // ATOMIC FAN-OUT: Trigger N parallel function calls (1 per image)
         const baseUrl = getBaseUrl();
 
