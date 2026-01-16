@@ -51,7 +51,7 @@ async function main() {
         body: JSON.stringify({
             pageCount: 1,
             pageManifest: [manifestKey],
-            email: 'cybernovascnn@gmail.com'
+            email: 'heroharshal69@gmail.com'
         })
     });
 
