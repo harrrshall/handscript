@@ -95,10 +95,17 @@ async function handler(request: NextRequest) {
             [index]: JSON.stringify({ html: pageHtml, status: "complete" })
         });
 
-        // 4. Atomically increment completed count
-        const completedCount = await redis.hincrby(`job:${jobId}`, "completedPages", 1);
+        // 4. Atomically increment completed count (using get/set since job is stored as JSON, not a hash)
         const jobData: any = await redis.get(`job:${jobId}`);
-        const totalImages = jobData?.totalPages || 0;
+        if (!jobData) {
+            throw new Error(`Job ${jobId} not found in Redis`);
+        }
+        jobData.completedPages = (jobData.completedPages || 0) + 1;
+        jobData.updatedAt = Date.now();
+        await redis.set(`job:${jobId}`, jobData);
+
+        const completedCount = jobData.completedPages;
+        const totalImages = jobData.totalPages || 0;
 
         await logger.logToRedis(jobId, `Page ${index + 1} complete. Progress: ${completedCount}/${totalImages}`);
 
@@ -149,10 +156,13 @@ async function handler(request: NextRequest) {
                         failedPages.push(body.index);
                     }
                     job.failedPages = failedPages;
-                    await redis.set(`job:${jobId}`, job);
 
                     // Still increment completed count so we can finalize with partial results
-                    const completedCount = await redis.hincrby(`job:${jobId}`, "completedPages", 1);
+                    job.completedPages = (job.completedPages || 0) + 1;
+                    job.updatedAt = Date.now();
+                    await redis.set(`job:${jobId}`, job);
+
+                    const completedCount = job.completedPages;
                     const totalImages = job.totalPages || 0;
 
                     // Store a placeholder for this failed page

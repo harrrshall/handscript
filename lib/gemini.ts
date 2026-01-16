@@ -107,18 +107,29 @@ TRANSCRIPTION RULES:
 
 export async function generateBatchNotes(signedUrls: string[]): Promise<BatchResponse> {
     try {
-        // OPTIMIZED: Use fileData with fileUri instead of inlineData
-        // Gemini fetches directly from B2, bypassing Vercel bandwidth
-        const imageParts = signedUrls.map((url) => ({
-            fileData: {
-                fileUri: url,
-                mimeType: "image/png",
-            },
+        // FIXED: Fetch images and use inlineData instead of fileUri
+        // fileUri only works with Gemini's File API, not external URLs
+        const imageParts = await Promise.all(signedUrls.map(async (url) => {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch image from ${url}: ${response.status}`);
+            }
+            const buffer = await response.arrayBuffer();
+            const base64 = Buffer.from(buffer).toString('base64');
+            const contentType = response.headers.get('content-type') || 'image/jpeg';
+            const mimeType = contentType.split(';')[0].trim();
+
+            return {
+                inlineData: {
+                    data: base64,
+                    mimeType: mimeType,
+                },
+            };
         }));
 
         logger.info("GeminiRequest", {
             metadata: {
-                method: "fileUri",
+                method: "inlineData-base64",
                 imageCount: signedUrls.length,
             }
         });
@@ -156,33 +167,52 @@ export async function generateBatchNotes(signedUrls: string[]): Promise<BatchRes
             metadata: {
                 isUrlError:
                     error.message?.includes("url_retrieval") ||
-                    error.message?.includes("Invalid file_uri"),
+                    error.message?.includes("Invalid file_uri") ||
+                    error.message?.includes("fetch"),
             }
         });
         throw error;
     }
 }
 
+
 /**
  * Generates structured notes for a SINGLE image (atomic processing).
  * Designed for parallel fan-out pattern - each call handles exactly one page.
  * Uses a 40s timeout to stay well under Vercel's 60s limit.
+ * 
+ * UPDATED: Fetches image from URL and sends as base64 inlineData
+ * because fileUri only works with Gemini's File API, not external URLs.
  *
  * @param signedUrl Pre-signed URL to single image in B2
  * @returns Parsed SinglePageResponse object
  */
 export async function generateNotesForSingleImage(signedUrl: string): Promise<SinglePageResponse> {
     try {
+        // Fetch image from signed URL and convert to base64
+        const imageResponse = await fetch(signedUrl);
+        if (!imageResponse.ok) {
+            throw new Error(`Failed to fetch image: ${imageResponse.status} ${imageResponse.statusText}`);
+        }
+
+        const imageBuffer = await imageResponse.arrayBuffer();
+        const base64Image = Buffer.from(imageBuffer).toString('base64');
+
+        // Detect mime type from content-type header or default to png
+        const contentType = imageResponse.headers.get('content-type') || 'image/png';
+        const mimeType = contentType.split(';')[0].trim();
+
         const imagePart = {
-            fileData: {
-                fileUri: signedUrl,
-                mimeType: "image/png",
+            inlineData: {
+                data: base64Image,
+                mimeType: mimeType,
             },
         };
 
         logger.info("GeminiSingleImageRequest", {
             metadata: {
-                method: "fileUri-atomic",
+                method: "inlineData-base64",
+                imageSize: imageBuffer.byteLength,
             }
         });
 
@@ -219,10 +249,12 @@ export async function generateNotesForSingleImage(signedUrl: string): Promise<Si
             metadata: {
                 isUrlError:
                     error.message?.includes("url_retrieval") ||
-                    error.message?.includes("Invalid file_uri"),
+                    error.message?.includes("Invalid file_uri") ||
+                    error.message?.includes("fetch"),
             }
         });
         throw error;
     }
 }
+
 
