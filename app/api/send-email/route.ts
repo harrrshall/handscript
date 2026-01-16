@@ -9,9 +9,15 @@ import { env } from "@/lib/env";
 const resend = new Resend(env.RESEND_API_KEY || "re_mock");
 
 async function handler(request: NextRequest) {
+  let jobId: string | undefined;
+  let email: string | undefined;
+
   try {
     const body = await request.json();
-    const { jobId, email, pdfUrl, pdfKey } = body;
+    // Assign to outer scope variables
+    jobId = body.jobId;
+    email = body.email;
+    const { pdfUrl, pdfKey } = body;
 
     // Validate required fields
     if (!jobId || !email) {
@@ -73,7 +79,7 @@ async function handler(request: NextRequest) {
             <div class="header">
               <div class="logo">H</div>
               <h1>Your PDF is Ready!</h1>
-              <p>Great news! Your handwritten notes have been successfully converted to a beautifully formatted PDF document.</p>
+              <p>Great news! Your handwritten notes have been successfully converted to a beautifully typed formatted PDF document.</p>
             </div>
             
             <div style="text-align: center;">
