@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
-import { Resend } from "resend";
 import { redis } from "@/lib/redis";
 import { logger, metrics } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { getBaseUrl } from "@/lib/utils";
-
-const resend = new Resend(env.RESEND_API_KEY || "re_mock");
 
 async function handler(request: NextRequest) {
   try {
@@ -28,13 +25,13 @@ async function handler(request: NextRequest) {
     }
 
     // Call Gmail utility
-    const { sendGmail } = await import('@/lib/mailer');
+    const { sendEmail } = await import('@/lib/mailer');
     const baseUrl = getBaseUrl();
 
-    // Note: error handling is slightly different as sendGmail throws on error, 
+    // Note: error handling is slightly different as sendEmail throws on error, 
     // whereas Resend returns { error } object. We wrap in try block (already done at top level).
 
-    const result = await sendGmail({
+    const result = await sendEmail({
       to: email,
       subject: "Your HandScript Conversion Encountered an Issue ⚠️",
       html: `
@@ -94,7 +91,7 @@ async function handler(request: NextRequest) {
     });
 
     // Code below handles success case naturally
-    // If sendGmail throws, it goes to catch block at line 114
+    // If sendEmail throws, it goes to catch block at line 114
 
 
     // Update job with error email status
