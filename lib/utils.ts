@@ -39,13 +39,13 @@ export function getBaseUrl() {
             : `https://${env.PRODUCTION_URL}`;
     }
 
-    if (env.VERCEL_URL) {
-        return `https://${env.VERCEL_URL}`;
-    }
-
-    // Fallback for production if env vars missing
+    // Force valid production URL if in production (ignores ephemeral Vercel URLs)
     if (process.env.NODE_ENV === 'production') {
         return 'https://handscriptnotes.vercel.app';
+    }
+
+    if (env.VERCEL_URL) {
+        return `https://${env.VERCEL_URL}`;
     }
 
     return 'http://localhost:3000';

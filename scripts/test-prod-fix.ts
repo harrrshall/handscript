@@ -19,18 +19,36 @@ async function main() {
         fs.writeFileSync(IMG_PATH, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==', 'base64'));
     }
 
-    // Upload to B2
-    const buffer = fs.readFileSync(IMG_PATH);
+    // Upload to B2 using Prod API
     const key = 'uploads/prod-test/' + Date.now() + '-image-01.png';
-    await uploadFile(key, buffer, 'image/png');
-    console.log('Uploaded:', key);
+    const uploadUrlRes = await fetch(BASE_URL + '/api/get-upload-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: key, contentType: 'image/png' })
+    });
+
+    if (!uploadUrlRes.ok) throw new Error('Get upload URL failed: ' + await uploadUrlRes.text());
+    const { uploadUrl } = await uploadUrlRes.json();
+    console.log('Got upload URL for:', key);
+
+    const buffer = fs.readFileSync(IMG_PATH);
+    const uploadRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: buffer,
+        headers: { 'Content-Type': 'image/png' }
+    });
+
+    if (!uploadRes.ok) throw new Error('Upload failed: ' + uploadRes.statusText);
+    console.log('Uploaded successfully via Presigned URL');
+
+    const manifestKey = key; // Use the key we generated
 
     // Create job on PROD
     console.log('Creating job on PROD...');
     const jobRes = await fetch(BASE_URL + '/api/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pageCount: 1, pageManifest: [key] })
+        body: JSON.stringify({ pageCount: 1, pageManifest: [manifestKey] })
     });
 
     if (!jobRes.ok) throw new Error('Job creation failed: ' + await jobRes.text());
