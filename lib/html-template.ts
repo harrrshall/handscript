@@ -173,7 +173,7 @@ export const ACADEMIC_CSS = `
     color: #999;
     z-index: 10000;
     padding-top: 5px;
-    padding-right: 2.5cm; /* Align with page margins */
+    padding-right: 0.5cm; /* Align with page margins */
     box-sizing: border-box;
     background: rgba(255, 255, 255, 0.8);
   }
