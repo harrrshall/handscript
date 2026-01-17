@@ -33,11 +33,7 @@ async function setupCors() {
                 {
                     AllowedHeaders: ["*"],
                     AllowedMethods: ["GET", "PUT", "POST", "HEAD"], // Added POST just in case, PUT is critical
-                    AllowedOrigins: [
-                        "https://handscriptnotes.vercel.app",
-                        "http://localhost:3000",
-                        "https://*.vercel.app" // Wildcard for preview deployments
-                    ],
+                    AllowedOrigins: ["*"], // Allow all origins (safe since presigned URLs provide auth)
                     ExposeHeaders: ["ETag"],
                     MaxAgeSeconds: 3600
                 }

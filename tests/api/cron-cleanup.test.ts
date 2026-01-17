@@ -1,16 +1,17 @@
 import { GET } from '../../app/api/cron/cleanup/route';
 import { NextRequest } from 'next/server';
 import { listFiles, deleteFile } from '../../lib/s3';
+import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 
 // Mock dependencies
-jest.mock('../../lib/s3', () => ({
-    listFiles: jest.fn(),
-    deleteFile: jest.fn(),
+vi.mock('../../lib/s3', () => ({
+    listFiles: vi.fn(),
+    deleteFile: vi.fn(),
 }));
 
 describe('GET /api/cron/cleanup', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         process.env.CRON_SECRET = 'test_secret';
     });
 
@@ -32,7 +33,7 @@ describe('GET /api/cron/cleanup', () => {
         const twoHoursAgo = new Date(now - 2 * 60 * 60 * 1000).toISOString();
         const oneMinuteAgo = new Date(now - 60 * 1000).toISOString();
 
-        (listFiles as jest.Mock).mockResolvedValue({
+        (listFiles as Mock).mockResolvedValue({
             blobs: [
                 { pathname: 'inputs/old.png', uploadedAt: twoHoursAgo },
                 { pathname: 'outputs/old.pdf', uploadedAt: twoHoursAgo },
@@ -58,7 +59,7 @@ describe('GET /api/cron/cleanup', () => {
         const now = Date.now();
         const oneMinuteAgo = new Date(now - 60 * 1000).toISOString();
 
-        (listFiles as jest.Mock).mockResolvedValue({
+        (listFiles as Mock).mockResolvedValue({
             blobs: [
                 { pathname: 'inputs/recent.png', uploadedAt: oneMinuteAgo },
             ],

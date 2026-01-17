@@ -1,52 +1,49 @@
 import { POST } from '../../app/api/send-error-email/route';
 import { NextRequest } from 'next/server';
-import { Resend } from 'resend';
 import { redis } from '../../lib/redis';
+import { vi, describe, it, expect, beforeEach, Mock } from 'vitest';
 
 // Mock dependencies
-jest.mock('resend');
-jest.mock('../../lib/redis', () => ({
+vi.mock('../../lib/mailer', () => ({
+    sendEmail: vi.fn(),
+}));
+
+vi.mock('../../lib/redis', () => ({
     redis: {
-        get: jest.fn(),
-        set: jest.fn(),
+        get: vi.fn(),
+        set: vi.fn(),
     },
 }));
-jest.mock('../../lib/logger', () => ({
+vi.mock('../../lib/logger', () => ({
     logger: {
-        info: jest.fn(),
-        error: jest.fn(),
+        info: vi.fn(),
+        error: vi.fn(),
     },
     metrics: {
-        increment: jest.fn(),
+        increment: vi.fn(),
     },
 }));
-jest.mock('../../lib/env', () => ({
+vi.mock('../../lib/env', () => ({
     env: {
-        RESEND_API_KEY: 'test_key',
-        EMAIL_FROM: 'test@example.com',
+        GMAIL_USER: 'test@example.com',
+        GMAIL_APP_PASSWORD: 'test_password',
     },
 }));
-jest.mock('../../lib/utils', () => ({
-    getBaseUrl: jest.fn().mockReturnValue('http://localhost:3000'),
+vi.mock('../../lib/utils', () => ({
+    getBaseUrl: vi.fn().mockReturnValue('http://localhost:3000'),
 }));
+
+import { sendEmail } from '../../lib/mailer';
 
 describe('POST /api/send-error-email', () => {
-    let mockSend: jest.Mock;
-
     beforeEach(() => {
-        jest.clearAllMocks();
-        mockSend = jest.fn();
-        (Resend as unknown as jest.Mock).mockImplementation(() => ({
-            emails: {
-                send: mockSend,
-            },
-        }));
+        vi.clearAllMocks();
         process.env.NODE_ENV = 'test';
     });
 
     it('API-ERR-001: Sends error email successfully', async () => {
-        mockSend.mockResolvedValue({ data: { id: 'email_err_123' }, error: null });
-        (redis.get as jest.Mock).mockResolvedValue({ id: 'job123' });
+        (sendEmail as Mock).mockResolvedValue({ success: true, messageId: 'email_err_123' });
+        (redis.get as Mock).mockResolvedValue({ id: 'job123' });
 
         const body = {
             jobId: 'job123',
@@ -65,7 +62,7 @@ describe('POST /api/send-error-email', () => {
         expect(res.status).toBe(200);
         expect(data.emailId).toBe('email_err_123');
 
-        expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({
+        expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({
             to: 'user@example.com',
             subject: expect.stringContaining('Issue'),
             html: expect.stringContaining('Something went wrong'),

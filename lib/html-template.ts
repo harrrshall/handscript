@@ -161,6 +161,22 @@ export const ACADEMIC_CSS = `
     body { padding: 0; margin: 0; width: 100%; max-width: none; }
     .page-break { page-break-before: always; }
   }
+
+  /* Watermark */
+  #watermark {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    text-align: right;
+    font-size: 10px;
+    color: #999;
+    z-index: 10000;
+    padding-top: 5px;
+    padding-right: 2.5cm; /* Align with page margins */
+    box-sizing: border-box;
+    background: rgba(255, 255, 255, 0.8);
+  }
 `;
 
 export function wrapWithTemplate(htmlContent: string): string {
@@ -175,6 +191,7 @@ export function wrapWithTemplate(htmlContent: string): string {
   </style>
 </head>
 <body>
+  <div id="watermark">https://handscriptnotes.vercel.app/</div>
   ${htmlContent}
 </body>
 </html>`;

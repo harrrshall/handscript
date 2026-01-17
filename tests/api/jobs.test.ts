@@ -2,22 +2,25 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
 // Hoisted mocks
-const { mockBatchPublishToQStash, mockRedisSet, mockRedisExpire, mockRedisScan } = vi.hoisted(() => {
+const { mockBatchPublishToQStash, mockRedisSet, mockRedisExpire, mockRedisScan, mockRedisSadd, mockRedisGet } = vi.hoisted(() => {
     return {
         mockBatchPublishToQStash: vi.fn(),
         mockRedisSet: vi.fn(),
         mockRedisExpire: vi.fn(),
         mockRedisScan: vi.fn().mockResolvedValue([0, []]),
+        mockRedisSadd: vi.fn(),
+        mockRedisGet: vi.fn(),
     };
 });
 
 // Mock dependencies
 vi.mock('../../lib/redis', () => ({
     redis: {
-        get: vi.fn(),
+        get: mockRedisGet,
         set: mockRedisSet,
         expire: mockRedisExpire,
         scan: mockRedisScan,
+        sadd: mockRedisSadd,
     },
 }));
 vi.mock('../../lib/queue', () => ({

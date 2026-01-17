@@ -7,7 +7,7 @@ import pLimit from 'p-limit';
 
 const execPromise = util.promisify(exec);
 const BASE_URL = 'http://localhost:3000';
-const PDF_PATH = '/home/cybernovas/Desktop/2026/handscript/mdnotes.pdf';
+const PDF_PATH = path.join(process.cwd(), 'mdnotes.pdf');
 const TEMP_IMG_DIR = path.join(process.cwd(), 'scripts', 'temp_images');
 
 async function main() {
@@ -76,41 +76,42 @@ async function main() {
     const pagePromises = imageUrls.map((_, index) => {
         return limit(async () => {
             console.log(`Triggering page ${index}...`);
-            const res = await fetch(`${BASE_URL}/api/process`, {
+            const key = `inputs/${files[index]}`; // Reconstruct key based on upload logic
+            const res = await fetch(`${BASE_URL}/api/internal/process-image`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ jobId, pageIndex: index })
+                body: JSON.stringify({ jobId, imageKey: key, index })
             });
             if (!res.ok) {
                 const txt = await res.text();
                 throw new Error(`Page ${index} failed: ${txt}`);
             }
             const data = await res.json();
-            console.log(`Page ${index} complete. Markdown length: ${data.markdown?.length}`);
+            console.log(`Page ${index} complete. Success: ${data.success}`);
         });
     });
 
     await Promise.all(pagePromises);
 
-    // 5. Assemble
-    console.log('Assembling...');
-    const assembleRes = await fetch(`${BASE_URL}/api/jobs/${jobId}/assemble`, {
+    // 5. Finalize
+    console.log('Finalizing...');
+    const assembleRes = await fetch(`${BASE_URL}/api/jobs/${jobId}/finalize`, {
         method: 'POST'
     });
 
     if (!assembleRes.ok) throw new Error(`Assembly failed: ${assembleRes.statusText}`);
 
-    // 6. Render
-    console.log('Rendering PDF...');
-    const renderRes = await fetch(`${BASE_URL}/api/jobs/${jobId}/render`, {
-        method: 'POST'
-    });
+    // 6. Render - Finalize returns the PDF URL directly
+    // console.log('Rendering PDF...');
+    // const renderRes = await fetch(`${BASE_URL}/api/jobs/${jobId}/render`, {
+    //     method: 'POST'
+    // });
 
-    if (!renderRes.ok) {
-        const txt = await renderRes.text();
-        throw new Error(`Render failed: ${renderRes.status} - ${txt}`);
-    }
-    const renderData = await renderRes.json();
+    // if (!renderRes.ok) {
+    //     const txt = await renderRes.text();
+    //     throw new Error(`Render failed: ${renderRes.status} - ${txt}`);
+    // }
+    const renderData = await assembleRes.json();
     console.log('Final PDF URL:', renderData.pdfUrl);
 
     // 7. Download result

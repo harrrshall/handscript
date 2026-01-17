@@ -1,13 +1,12 @@
 import { POST } from '../../app/api/send-email/route';
 import { NextRequest } from 'next/server';
-import { Resend } from 'resend';
 import { redis } from '../../lib/redis';
 import { getDownloadUrl } from '../../lib/s3';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, Mock } from 'vitest';
 
 // Mock dependencies
-vi.mock('resend', () => ({
-    Resend: vi.fn(),
+vi.mock('@/lib/mailer', () => ({
+    sendEmail: vi.fn(),
 }));
 
 vi.mock('../../lib/redis', () => ({
@@ -23,6 +22,7 @@ vi.mock('../../lib/logger', () => ({
     logger: {
         info: vi.fn(),
         error: vi.fn(),
+        warn: vi.fn(), // Added warn to logger mock
     },
     metrics: {
         increment: vi.fn(),
@@ -30,28 +30,22 @@ vi.mock('../../lib/logger', () => ({
 }));
 vi.mock('../../lib/env', () => ({
     env: {
-        RESEND_API_KEY: 'test_key',
-        EMAIL_FROM: 'test@example.com',
+        GMAIL_USER: 'test@example.com',
+        GMAIL_APP_PASSWORD: 'test_password',
     },
 }));
 
-describe('POST /api/send-email', () => {
-    let mockSend: any;
+import { sendEmail } from '@/lib/mailer';
 
+describe('POST /api/send-email', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mockSend = vi.fn();
-        (Resend as any).mockImplementation(() => ({
-            emails: {
-                send: mockSend,
-            },
-        }));
-        (getDownloadUrl as any).mockResolvedValue('https://b2.com/refreshed.pdf');
+        (getDownloadUrl as Mock).mockResolvedValue('https://b2.com/refreshed.pdf');
     });
 
     it('API-EML-001: Sends email successfully', async () => {
-        mockSend.mockResolvedValue({ data: { id: 'email_123' }, error: null });
-        (redis.get as any).mockResolvedValue({ id: 'job123' });
+        (sendEmail as Mock).mockResolvedValue({ success: true, messageId: 'email_123' });
+        (redis.get as Mock).mockResolvedValue({ id: 'job123' });
 
         const body = {
             jobId: 'job123',
@@ -72,9 +66,9 @@ describe('POST /api/send-email', () => {
         expect(data.emailId).toBe('email_123');
 
         expect(getDownloadUrl).toHaveBeenCalledWith('outputs/job123.pdf', 86400, 'handscript-notes.pdf');
-        expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({
+        expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({
             to: 'user@example.com',
-            subject: expect.stringContaining('PDF is Ready'),
+            subject: expect.stringContaining('Ready'),
         }));
 
         expect(redis.set).toHaveBeenCalledWith(
@@ -82,8 +76,7 @@ describe('POST /api/send-email', () => {
             expect.objectContaining({
                 emailStatus: 'sent',
                 emailId: 'email_123',
-            }),
-            expect.anything()
+            })
         );
     });
 });

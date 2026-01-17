@@ -4,79 +4,82 @@ import { redis } from '../../lib/redis';
 import { queueEmailDelivery } from '../../lib/queue';
 import { uploadFile, getDownloadUrl } from '../../lib/s3';
 import { PDFDocument } from 'pdf-lib';
+import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 
 // Mock dependencies
-jest.mock('../../lib/redis', () => ({
+vi.mock('../../lib/redis', () => ({
     redis: {
-        get: jest.fn(),
-        mget: jest.fn(),
-        set: jest.fn(),
-        del: jest.fn(),
+        get: vi.fn(),
+        mget: vi.fn(),
+        set: vi.fn(),
+        del: vi.fn(),
+        hgetall: vi.fn(), // Added hgetall as per new implementation
     },
 }));
-jest.mock('../../lib/queue', () => ({
-    queueEmailDelivery: jest.fn(),
-    queueErrorEmail: jest.fn(),
+vi.mock('../../lib/queue', () => ({
+    queueEmailDelivery: vi.fn(),
+    queueErrorEmail: vi.fn(),
 }));
-jest.mock('../../lib/s3', () => ({
-    uploadFile: jest.fn(),
-    deleteFile: jest.fn(),
-    getDownloadUrl: jest.fn(),
+vi.mock('../../lib/s3', () => ({
+    uploadFile: vi.fn(),
+    deleteFile: vi.fn(),
+    getDownloadUrl: vi.fn(),
 }));
-jest.mock('../../lib/html-template', () => ({
+vi.mock('../../lib/html-template', () => ({
     wrapWithTemplate: (html: string) => `<html>${html}</html>`,
 }));
-jest.mock('../../lib/logger', () => ({
+vi.mock('../../lib/logger', () => ({
     logger: {
-        info: jest.fn(),
-        error: jest.fn(),
-        warn: jest.fn(),
-        debug: jest.fn(),
-        critical: jest.fn(),
-        logToRedis: jest.fn(),
+        info: vi.fn(),
+        error: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
+        critical: vi.fn(),
+        logToRedis: vi.fn(),
     },
     metrics: {
-        increment: jest.fn(),
-        recordLatency: jest.fn(),
+        increment: vi.fn(),
+        recordLatency: vi.fn(),
     },
 }));
-jest.mock('../../lib/utils', () => ({
-    withRetry: jest.fn((fn) => fn()),
-    withTimeout: jest.fn((promise) => promise),
-    getBaseUrl: jest.fn().mockReturnValue('http://localhost:3000'),
+vi.mock('../../lib/utils', () => ({
+    withRetry: vi.fn((fn) => fn()),
+    withTimeout: vi.fn((promise) => promise),
+    getBaseUrl: vi.fn().mockReturnValue('http://localhost:3000'),
 }));
 
 // Mock Global Fetch for Modal
-global.fetch = jest.fn() as jest.Mock;
+global.fetch = vi.fn() as Mock;
 
 describe('POST /api/jobs/[jobId]/finalize', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         // Reset PDFDocument mocks via spyOn if needed, or rely on pdf-lib actual implementation if simple enough.
         // Actually, we should probably mock PDFDocument to avoid heavy operations.
     });
 
     it('API-FIN-001: Generates merged PDF and uploads to B2', async () => {
         // Setup Metadata
-        (redis.get as jest.Mock).mockResolvedValue({
+        (redis.get as Mock).mockResolvedValue({
             id: 'job123',
             totalPages: 2,
             pageManifest: ['key1', 'key2'],
             email: 'test@example.com',
         });
-        (redis.mget as jest.Mock).mockResolvedValue([
-            JSON.stringify({ html: '<p>Page 1</p>' }),
-            JSON.stringify({ html: '<p>Page 2</p>' }),
-        ]);
+        // Mock hgetall for new implementation
+        (redis.hgetall as Mock).mockResolvedValue({
+            '0': JSON.stringify({ html: '<p>Page 1</p>' }),
+            '1': JSON.stringify({ html: '<p>Page 2</p>' }),
+        });
 
         // Mock Modal Response (Base64 PDF)
-        (global.fetch as jest.Mock).mockResolvedValue({
+        (global.fetch as Mock).mockResolvedValue({
             ok: true,
             json: async () => ({ pdf: 'JVBERi0xLjcKCjEgMCBvYmogICUgZW50cnkgcG9pbnQKPDwKICAvVHlwZSAvQ2F0YWxvZwogIC9QYWdlcyAyIDAgUgo+PgRlbmRvYmoKCjIgMCBvYmogCjw8CiAgL1R5cGUgL1BhZ2VzCiAgL01lZGlhQm94IFsgMCAwIDIwMCAyMDAgXQogIC9Db3VudCAxCiAgL0tpZHMgWyAzIDAgUiBdCj4+CmVuZG9iagoKMyAwIG9iago8PAogIC9UeXBlIC9QYWdlCiAgL1BhcmVudCAyIDAgUgogIC9SZXNvdXJjZXMgPDwKICAgIC9Gb250IDw8CiAgICAgIC9GMSA0IDAgUgogICAgPj4KICA+PgogIC9Db250ZW50cyA1IDAgUgo+PgRlbmRvYmoKCjQgMCBvYmoKPDwKICAvVHlwZSAvRm9udAogIC9TdWJ0eXBlIC9UeXBlMQogIC9CYXNlRm9udCAvVGltZXMtUm9tYW4KPj4KZW5kb2JqCgo1IDAgb2JqCjw8IC9MZW5ndGggNDQgPj4Kc3RyZWFtCkJUCjcwIDUwIFRECi9GMSAxMiBUZgooSGVsbG8sIHdvcmxkISkgVGoKRVQKZW5kc3RyZWFtCmVuZG9iagoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDEwIDAwMDAwIG4gCjAwMDAwMDAwNjAgMDAwMDAgbiAKMDAwMDAwMDE1NyAwMDAwMCBuIAowMDAwMDAwMjU1IDAwMDAwIG4gCjAwMDAwMDAzNDQgMDAwMDAgbiAKdHJhaWxlcgo8PAogIC9TaXplIDYKICAvUm9vdCAxIDAgUgo+PgpzdGFydHhyZWYKNDQxCjw4' }), // Valid minimal PDF base64
         });
 
-        (uploadFile as jest.Mock).mockResolvedValue('outputs/job123.pdf');
-        (getDownloadUrl as jest.Mock).mockResolvedValue('https://b2.com/final.pdf');
+        (uploadFile as Mock).mockResolvedValue('outputs/job123.pdf');
+        (getDownloadUrl as Mock).mockResolvedValue('https://b2.com/final.pdf');
 
         const params = Promise.resolve({ jobId: 'job123' });
         const req = new NextRequest('http://localhost:3000/api/jobs/job123/finalize', { method: 'POST' });
@@ -108,7 +111,7 @@ describe('POST /api/jobs/[jobId]/finalize', () => {
     });
 
     it('API-FIN-006: Non-existent job returns 404', async () => {
-        (redis.get as jest.Mock).mockResolvedValue(null);
+        (redis.get as Mock).mockResolvedValue(null);
 
         const params = Promise.resolve({ jobId: 'unknown' });
         const req = new NextRequest('http://localhost:3000/api/jobs/unknown/finalize', { method: 'POST' });

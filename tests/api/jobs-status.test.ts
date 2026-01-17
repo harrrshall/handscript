@@ -1,33 +1,35 @@
 import { GET } from '../../app/api/jobs/[jobId]/status/route';
 import { NextRequest } from 'next/server';
 import { redis } from '../../lib/redis';
+import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 
 // Mock dependencies
-jest.mock('../../lib/redis', () => ({
+vi.mock('../../lib/redis', () => ({
     redis: {
-        get: jest.fn(),
-        lrange: jest.fn(),
+        get: vi.fn(),
+        lrange: vi.fn(),
+        scard: vi.fn().mockResolvedValue(0), // Mock scard for failing test
     },
 }));
 
 describe('GET /api/jobs/[jobId]/status', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
     });
 
     it('API-STS-001: Returns job status', async () => {
-        (redis.get as jest.Mock)
+        (redis.get as Mock)
             .mockResolvedValueOnce({
                 id: 'job123',
                 status: 'processing',
                 totalPages: 10,
-                // other fields...
-            }) // first call for job:jobId
-            .mockResolvedValueOnce('5'); // second call for completed count
+                completedPages: 5,
+            });
 
-        (redis.lrange as jest.Mock)
-            .mockResolvedValueOnce([]) // failed list
-            .mockResolvedValueOnce([]); // logs
+        // Mock scard to return 5 (the source of truth for progress)
+        (redis.scard as Mock).mockResolvedValueOnce(5);
+
+        (redis.lrange as Mock).mockResolvedValue([]);
 
         const req = new NextRequest('http://localhost:3000/api/jobs/job123/status');
         const params = Promise.resolve({ jobId: 'job123' });
@@ -45,7 +47,9 @@ describe('GET /api/jobs/[jobId]/status', () => {
     });
 
     it('API-STS-002: Non-existent job returns 404', async () => {
-        (redis.get as jest.Mock).mockResolvedValue(null);
+        // Ensure no leftover mocks
+        vi.clearAllMocks();
+        (redis.get as Mock).mockResolvedValue(null);
 
         const req = new NextRequest('http://localhost:3000/api/jobs/unknown/status');
         const params = Promise.resolve({ jobId: 'unknown' });
@@ -58,19 +62,16 @@ describe('GET /api/jobs/[jobId]/status', () => {
     });
 
     it('API-STS-004: Complete job has finalPdfUrl', async () => {
-        (redis.get as jest.Mock)
+        (redis.get as Mock)
             .mockResolvedValueOnce({
                 id: 'job123',
                 status: 'complete',
                 totalPages: 5,
                 completedPages: 5,
                 finalPdfUrl: 'https://b2.com/pdf.pdf',
-            })
-            .mockResolvedValueOnce('5');
+            });
 
-        (redis.lrange as jest.Mock)
-            .mockResolvedValueOnce([])
-            .mockResolvedValueOnce([]);
+        (redis.lrange as Mock).mockResolvedValue([]);
 
         const req = new NextRequest('http://localhost:3000/api/jobs/job123/status');
         const params = Promise.resolve({ jobId: 'job123' });
@@ -82,18 +83,15 @@ describe('GET /api/jobs/[jobId]/status', () => {
     });
 
     it('API-STS-005: Failed job has error', async () => {
-        (redis.get as jest.Mock)
+        (redis.get as Mock)
             .mockResolvedValueOnce({
                 id: 'job123',
                 status: 'failed',
                 totalPages: 5,
                 error: 'Processing failed',
-            })
-            .mockResolvedValueOnce('0');
+            });
 
-        (redis.lrange as jest.Mock)
-            .mockResolvedValueOnce([])
-            .mockResolvedValueOnce([]);
+        (redis.lrange as Mock).mockResolvedValue([]);
 
         const req = new NextRequest('http://localhost:3000/api/jobs/job123/status');
         const params = Promise.resolve({ jobId: 'job123' });

@@ -224,7 +224,7 @@ export async function generateNotesForSingleImage(signedUrl: string): Promise<Si
                     SINGLE_PAGE_PROMPT,
                     imagePart
                 ]),
-                40000, // 40s timeout - well under Vercel's 60s limit
+                55000, // 55s timeout - close to Vercel's 60s limit
                 "Gemini single-image request timed out"
             ),
             {

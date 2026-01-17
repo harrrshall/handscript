@@ -1,27 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { generateBatchNotes } from '@/lib/gemini';
-import { z } from 'zod';
 
-// Mock the generic @google/generative-ai library if needed
-// However, since we might want to test the `generateBatchNotes` logic which uses the model,
-// we will mock the `geminiModel.generateContent` method.
-// We need to look at how `lib/gemini.ts` exports the model or how we can mock it.
-// Assuming we can mock the module:
-
-vi.mock('@google/generative-ai', () => {
-    return {
-        GoogleGenerativeAI: vi.fn(),
-        GenerativeModel: vi.fn(),
-    };
-});
-
-// Since `lib/gemini.ts` likely instantiates the model at the top level, 
-// we might need to mock the *module* that `lib/gemini.ts` imports, OR mock `lib/gemini.ts`'s internal dependency.
-// But wait, `generateBatchNotes` is what we are testing.
-// Let's spy on the actual model usage if possible, or mock the result of `generateContent`.
-//
-// If `geminiModel` is not exported, we have to mock the `@google/generative-ai` constructor to return a mock model.
-
+// Mock generic @google/generative-ai library
 const { mockGenerateContent } = vi.hoisted(() => {
     return { mockGenerateContent: vi.fn() };
 });
@@ -39,7 +19,19 @@ vi.mock('@google/generative-ai', () => {
     };
 });
 
+// Mock global fetch for image download
+global.fetch = vi.fn() as unknown as ReturnType<typeof vi.fn>;
+
 describe('lib/gemini.ts (Section 2.1)', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        // Default fetch mock to return success
+        (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+            ok: true,
+            arrayBuffer: async () => new ArrayBuffer(8),
+            headers: { get: () => 'image/png' },
+        });
+    });
 
     it('GEM-001: generateBatchNotes returns valid BatchResponse', async () => {
         // Mock successful response
@@ -68,7 +60,7 @@ describe('lib/gemini.ts (Section 2.1)', () => {
             }
         });
 
-        await expect(generateBatchNotes(['url'])).rejects.toThrow();
+        await expect(generateBatchNotes(['http://example.com/img.png'])).rejects.toThrow();
     });
 
     it('GEM-004: Schema validation failure throws', async () => {
@@ -82,19 +74,24 @@ describe('lib/gemini.ts (Section 2.1)', () => {
         });
 
         // Should throw/reject because it doesn't match the Zod schema
-        await expect(generateBatchNotes(['url'])).rejects.toThrow();
+        await expect(generateBatchNotes(['http://example.com/img.png'])).rejects.toThrow();
     });
 
     it('GEM-005: Empty URL array handled', async () => {
-        // Depending on implementation, this might throw or return empty
-        // Assuming implementation handles it gracefully or we expect error if empty?
-        // Let's assume it might try to call Gemini or return early.
-        // If it calls Gemini with empty list, it might fail.
-        // We'll check behavior. If the code throws locally, we expect throw.
         try {
             await generateBatchNotes([]);
         } catch (e) {
             expect(e).toBeDefined();
         }
+    });
+
+    // Add a test case for Fetch Failure
+    it('GEM-006: Fetch failure throws', async () => {
+        (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+            ok: false,
+            status: 404,
+            statusText: 'Not Found'
+        });
+        await expect(generateBatchNotes(['http://example.com/missing.png'])).rejects.toThrow('Failed to fetch image');
     });
 });

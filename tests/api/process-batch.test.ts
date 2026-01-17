@@ -4,59 +4,63 @@ import { redis } from '../../lib/redis';
 import { publishToQStash, queueErrorEmail } from '../../lib/queue';
 import { generateBatchNotes } from '../../lib/gemini';
 import * as s3Presigner from "@aws-sdk/s3-request-presigner";
+import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 
 // Mock dependencies
-jest.mock('../../lib/redis', () => ({
+vi.mock('../../lib/redis', () => ({
     redis: {
-        mset: jest.fn(),
-        incrby: jest.fn(),
-        get: jest.fn(),
-        set: jest.fn(), // for error handling status update
+        mset: vi.fn(),
+        incrby: vi.fn(),
+        get: vi.fn(),
+        set: vi.fn(), // for error handling status update
+        del: vi.fn(),
+        sadd: vi.fn(), // Likely needed
+        expire: vi.fn(),
     },
 }));
-jest.mock('../../lib/queue', () => ({
-    publishToQStash: jest.fn(),
-    queueErrorEmail: jest.fn(),
+vi.mock('../../lib/queue', () => ({
+    publishToQStash: vi.fn(),
+    queueErrorEmail: vi.fn(),
 }));
-jest.mock('../../lib/gemini', () => ({
-    generateBatchNotes: jest.fn(),
+vi.mock('../../lib/gemini', () => ({
+    generateBatchNotes: vi.fn(),
 }));
-jest.mock('../../lib/formatting', () => ({
-    renderToHtml: jest.fn().mockImplementation((ir) => `<p>${ir.content}</p>`),
+vi.mock('../../lib/formatting', () => ({
+    renderToHtml: vi.fn().mockImplementation((ir) => `<p>${ir.content}</p>`),
 }));
-jest.mock('../../lib/logger', () => ({
+vi.mock('../../lib/logger', () => ({
     logger: {
-        info: jest.fn(),
-        error: jest.fn(),
-        logToRedis: jest.fn(),
+        info: vi.fn(),
+        error: vi.fn(),
+        logToRedis: vi.fn(),
     },
     metrics: {
-        increment: jest.fn(),
-        recordLatency: jest.fn(),
+        increment: vi.fn(),
+        recordLatency: vi.fn(),
     },
 }));
 // Mock S3
-jest.mock('@aws-sdk/client-s3');
-jest.mock('@aws-sdk/s3-request-presigner', () => ({
-    getSignedUrl: jest.fn(),
+vi.mock('@aws-sdk/client-s3');
+vi.mock('@aws-sdk/s3-request-presigner', () => ({
+    getSignedUrl: vi.fn(),
 }));
 
-jest.mock('../../lib/utils', () => ({
-    getBaseUrl: jest.fn().mockReturnValue('http://localhost:3000'),
+vi.mock('../../lib/utils', () => ({
+    getBaseUrl: vi.fn().mockReturnValue('http://localhost:3000'),
 }));
 
-const getSignedUrlMock = s3Presigner.getSignedUrl as jest.Mock;
+const getSignedUrlMock = s3Presigner.getSignedUrl as Mock;
 
 describe('POST /api/internal/process-batch', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         getSignedUrlMock.mockResolvedValue('https://s3.example.com/signed-url');
         process.env.NODE_ENV = 'test'; // Ensure handler is not wrapped
     });
 
     it('API-BAT-001: Processes batch successfully and triggers next batch', async () => {
         // Mock Gemini response
-        (generateBatchNotes as jest.Mock).mockResolvedValue({
+        (generateBatchNotes as Mock).mockResolvedValue({
             metadata: {},
             pages: [
                 { pageIndex: 0, content: 'Page 1 content' },
@@ -102,7 +106,7 @@ describe('POST /api/internal/process-batch', () => {
 
     it('API-BAT-006: Final batch triggers finalize', async () => {
         // Manifest size 5, batch 1 (indices 3, 4) -> End of manifest
-        (generateBatchNotes as jest.Mock).mockResolvedValue({
+        (generateBatchNotes as Mock).mockResolvedValue({
             metadata: {},
             pages: [
                 { pageIndex: 0, content: 'Page 4 content' }, // relative index in batch
@@ -137,7 +141,7 @@ describe('POST /api/internal/process-batch', () => {
     });
 
     it('API-BAT-009: Gemini failure returns 500', async () => {
-        (generateBatchNotes as jest.Mock).mockRejectedValue(new Error('Gemini Overloaded'));
+        (generateBatchNotes as Mock).mockRejectedValue(new Error('Gemini Overloaded'));
 
         const body = {
             jobId: 'job123',

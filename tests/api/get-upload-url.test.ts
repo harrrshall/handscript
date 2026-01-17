@@ -2,18 +2,19 @@ import { POST } from '../../app/api/get-upload-url/route';
 import { NextRequest } from 'next/server';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 
 // Mock S3 Client and Presigner
-jest.mock('@aws-sdk/client-s3');
-jest.mock('@aws-sdk/s3-request-presigner');
+vi.mock('@aws-sdk/client-s3');
+vi.mock('@aws-sdk/s3-request-presigner');
 
 describe('POST /api/get-upload-url', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
     });
 
     it('API-UPL-001: Returns upload URL for valid request', async () => {
-        (getSignedUrl as jest.Mock).mockResolvedValue('https://s3.example.com/upload-key');
+        (getSignedUrl as Mock).mockResolvedValue('https://s3.example.com/upload-key');
 
         const req = new NextRequest('http://localhost:3000/api/get-upload-url', {
             method: 'POST',
@@ -58,7 +59,7 @@ describe('POST /api/get-upload-url', () => {
     });
 
     it('API-UPL-005: Content-Type respected', async () => {
-        (getSignedUrl as jest.Mock).mockResolvedValue('https://s3.example.com/upload-key');
+        (getSignedUrl as Mock).mockResolvedValue('https://s3.example.com/upload-key');
 
         const req = new NextRequest('http://localhost:3000/api/get-upload-url', {
             method: 'POST',
@@ -73,7 +74,7 @@ describe('POST /api/get-upload-url', () => {
     });
 
     it('API-UPL-007: B2 credentials error (Internal Server Error)', async () => {
-        (getSignedUrl as jest.Mock).mockRejectedValue(new Error('S3 Error'));
+        (getSignedUrl as Mock).mockRejectedValue(new Error('S3 Error'));
 
         const req = new NextRequest('http://localhost:3000/api/get-upload-url', {
             method: 'POST',

@@ -1,4 +1,5 @@
 import { renderToHtml, sanitizeLatex } from '@/lib/formatting';
+import { wrapWithTemplate } from '@/lib/html-template';
 import { DocumentIR } from '@/lib/schema';
 import { describe, it, expect } from 'vitest';
 
@@ -89,6 +90,12 @@ describe('lib/formatting.ts (Section 2.2)', () => {
             // Assuming renderToHtml catches katex errors and outputs valid HTML with error class
             const out = renderToHtml(badDoc);
             expect(out).toContain("color:#cc0000");
+        });
+
+        it('Watermark: wrapWithTemplate includes watermark', () => {
+            const wrapped = wrapWithTemplate(output);
+            expect(wrapped).toContain('<div id="watermark">https://handscriptnotes.vercel.app/</div>');
+            expect(wrapped).toContain('#watermark {');
         });
     });
 });
