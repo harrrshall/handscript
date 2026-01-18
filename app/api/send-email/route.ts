@@ -98,6 +98,12 @@ async function handler(request: NextRequest) {
       await redis.set(`job:${jobId}`, job);
     }
 
+    // Increment email usage counter (track successful deliveries)
+    const emailUsageKey = `email:usage:${email.toLowerCase()}`;
+    await redis.incr(emailUsageKey);
+    // Set expiry to 1 year so counters don't persist forever
+    await redis.expire(emailUsageKey, 365 * 24 * 60 * 60);
+
     logger.info("EmailSent", {
       jobId,
       metadata: { email, emailId: result.messageId }
@@ -114,6 +120,32 @@ async function handler(request: NextRequest) {
       metadata: { email, error: error.message }
     });
     await metrics.increment("email_errors");
+
+    // Check for invalid email address error
+    const errorMessage = error.message || '';
+    if (
+      errorMessage.includes("couldn't be found") ||
+      errorMessage.includes("address couldn't be found") ||
+      errorMessage.includes("unable to receive mail") ||
+      errorMessage.includes("550") ||
+      errorMessage.includes("Invalid recipient")
+    ) {
+      // Add to blocklist so this email is rejected immediately next time
+      if (email) {
+        const blockKey = `email:blocked:${email.toLowerCase()}`;
+        await redis.set(blockKey, {
+          reason: 'SMTP rejection',
+          blockedAt: Date.now(),
+          originalError: errorMessage.substring(0, 200)
+        });
+        logger.info("EmailBlocked", { email, reason: 'SMTP rejection' });
+      }
+
+      return NextResponse.json(
+        { error: "The email address does not exist or is unable to receive mail. Please try again with a valid email." },
+        { status: 400 }
+      );
+    }
 
     return NextResponse.json(
       { error: "Internal server error" },

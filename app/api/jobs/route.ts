@@ -4,10 +4,15 @@ import { nanoid } from 'nanoid';
 import { z } from 'zod';
 
 const createJobSchema = z.object({
-    pageCount: z.number().min(1).max(200),
+    pageCount: z.number().min(1).max(60),
     pageManifest: z.array(z.string()).min(1),
-    email: z.string().email().optional(),
+    email: z.string().email().refine(
+        (email) => email.toLowerCase().endsWith('@gmail.com'),
+        { message: 'Only Gmail addresses are supported' }
+    ),
 });
+
+const MAX_FILES_PER_EMAIL = 3;
 
 import { batchPublishToQStash } from "@/lib/queue";
 import { logger, metrics } from '@/lib/logger';
@@ -81,6 +86,26 @@ export async function POST(request: Request) {
             return NextResponse.json(
                 { error: 'Page count does not match manifest length' },
                 { status: 400 }
+            );
+        }
+
+        // Check if email is blocked (bounced or manually blocked)
+        const blockKey = `email:blocked:${email.toLowerCase()}`;
+        const isBlocked = await redis.get(blockKey);
+        if (isBlocked) {
+            return NextResponse.json(
+                { error: 'This email address has been blocked due to previous delivery failures. Please use a different email.' },
+                { status: 400 }
+            );
+        }
+
+        // Check email usage limit
+        const emailUsageKey = `email:usage:${email.toLowerCase()}`;
+        const currentUsage = await redis.get(emailUsageKey) as number | null;
+        if (currentUsage !== null && currentUsage >= MAX_FILES_PER_EMAIL) {
+            return NextResponse.json(
+                { error: `You've reached the ${MAX_FILES_PER_EMAIL}-file limit for this email. Please contact Harshal for more access.` },
+                { status: 429 }
             );
         }
 

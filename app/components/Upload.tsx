@@ -20,13 +20,18 @@ export default function Upload({ onJobCreated, onError }: UploadProps) {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
     const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    const isFormValid = selectedFile && validateEmail(email);
+    const isGmailEmail = (email: string) => email.toLowerCase().endsWith('@gmail.com');
+    const isFormValid = selectedFile && validateEmail(email) && isGmailEmail(email);
 
     const handleFileSelect = (file: File) => setSelectedFile(file);
 
     const handleConvert = async () => {
         if (!selectedFile || !validateEmail(email)) {
             if (!validateEmail(email)) setEmailError("Please enter a valid email");
+            return;
+        }
+        if (!isGmailEmail(email)) {
+            setEmailError("Do not use disposable or non Gmail email addresses. Only Gmail is supported for now.");
             return;
         }
 
@@ -39,7 +44,7 @@ export default function Upload({ onJobCreated, onError }: UploadProps) {
             const pdf = await pdfjsLib.getDocument(buffer).promise;
             const totalPages = pdf.numPages;
 
-            if (totalPages > 200) throw new Error('PDF too large. Max 200 pages.');
+            if (totalPages > 60) throw new Error('PDF too large. Max 60 pages.');
 
             const keys: string[] = [];
             const BATCH_SIZE = 5;
@@ -139,7 +144,7 @@ export default function Upload({ onJobCreated, onError }: UploadProps) {
                                     ) : (
                                         <>
                                             <p className="text-sm font-medium text-slate-grey">Drop PDF or <span className="text-primary underline">browse</span></p>
-                                            <p className="text-[10px] text-cool-grey/60 mt-1">Up to 200 pages</p>
+                                            <p className="text-[10px] text-cool-grey/60 mt-1">Up to 60 pages</p>
                                         </>
                                     )}
                                 </div>
