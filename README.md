@@ -222,7 +222,7 @@ npm test
 
 ## 📄 License
 
-MIT © [Your Name](https://github.com/harrrshall)
+MIT © [harrrshall](https://github.com/harrrshall)
 
 ---
 
