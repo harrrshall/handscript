@@ -41,7 +41,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/handscript.git
+git clone https://github.com/harrrshall/handscript.git
 cd handscript
 
 # Install dependencies
