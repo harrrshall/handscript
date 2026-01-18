@@ -172,7 +172,7 @@ export const ACADEMIC_CSS = `
     font-size: 10px;
     color: #999;
     z-index: 10000;
-    padding-top: 2px;
+    padding-top: 1px;
     padding-right: 0.5cm; /* Align with page margins */
     box-sizing: border-box;
     background: rgba(255, 255, 255, 0.8);
