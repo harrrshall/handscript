@@ -222,10 +222,9 @@ npm test
 
 ## 📄 License
 
-MIT © [Your Name](https://github.com/yourusername)
+MIT © [Your Name](https://github.com/harrrshall)
 
 ---
 
 <p align="center">
-  Made with ❤️ using Next.js and Google Gemini
-</p>
+  Made by Harshal singh 
