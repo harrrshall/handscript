@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
-import { uploadFile, deleteFile, getDownloadUrl } from '@/lib/s3';
+import { uploadFile, deleteFile, getDownloadUrl, downloadFile } from '@/lib/s3';
 import { wrapWithTemplate } from '@/lib/html-template';
 import { PDFDocument } from 'pdf-lib';
 import { queueEmailDelivery, queueErrorEmail } from '@/lib/queue';
@@ -8,36 +8,6 @@ import { env } from '@/lib/env';
 import { withRetry, withTimeout, getBaseUrl } from '@/lib/utils';
 import { logger, metrics } from '@/lib/logger';
 
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-
-const s3Client = new S3Client({
-    endpoint: env.B2_ENDPOINT.startsWith("http")
-        ? env.B2_ENDPOINT
-        : `https://${env.B2_ENDPOINT}`,
-    region: env.B2_REGION,
-    credentials: {
-        accessKeyId: env.B2_KEY_ID,
-        secretAccessKey: env.B2_APPLICATION_KEY,
-    },
-});
-
-// Add helper function to download PDF from B2 key
-async function downloadPdfFromB2(key: string): Promise<Buffer> {
-    const command = new GetObjectCommand({
-        Bucket: env.B2_BUCKET_NAME,
-        Key: key,
-    });
-
-    const response = await s3Client.send(command);
-    const chunks: Uint8Array[] = [];
-
-    // @ts-ignore - Body is a readable stream
-    for await (const chunk of response.Body) {
-        chunks.push(chunk);
-    }
-
-    return Buffer.concat(chunks);
-}
 
 export async function POST(
     request: Request,
@@ -165,7 +135,7 @@ export async function POST(
                 // Check if Modal uploaded directly to B2
                 if (data.key) {
                     // Download from B2 for merging (internal fast transfer)
-                    const pdfBuffer = await downloadPdfFromB2(data.key);
+                    const pdfBuffer = await downloadFile(data.key);
 
                     // Clean up temporary page PDF from B2
                     await deleteFile(data.key);

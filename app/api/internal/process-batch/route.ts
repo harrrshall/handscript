@@ -5,24 +5,11 @@ import { redis } from "@/lib/redis";
 import { generateBatchNotes } from "@/lib/gemini";
 import { renderToHtml } from "@/lib/formatting";
 import { z } from "zod";
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { BatchResponse, Page } from "@/lib/schema";
 import { publishToQStash, queueErrorEmail } from "@/lib/queue";
-import { env } from "@/lib/env";
 import { getBaseUrl } from "@/lib/utils";
 import { logger, metrics } from "@/lib/logger";
-
-const s3Client = new S3Client({
-    endpoint: env.B2_ENDPOINT.startsWith("http")
-        ? env.B2_ENDPOINT
-        : `https://${env.B2_ENDPOINT}`,
-    region: env.B2_REGION,
-    credentials: {
-        accessKeyId: env.B2_KEY_ID,
-        secretAccessKey: env.B2_APPLICATION_KEY,
-    },
-});
+import { getDownloadUrl } from "@/lib/s3";
 
 const processBatchSchema = z.object({
     jobId: z.string(),
@@ -61,15 +48,9 @@ async function handler(request: NextRequest) {
             metadata: { keyCount: keys.length }
         });
 
-        // Generate signed URLs
+        // Generate signed URLs using the shared s3 module
         const signedUrls = await Promise.all(
-            keys.map(async (key) => {
-                const command = new GetObjectCommand({
-                    Bucket: env.B2_BUCKET_NAME,
-                    Key: key,
-                });
-                return getSignedUrl(s3Client, command, { expiresIn: 7200 }); // 2 hours
-            })
+            keys.map(async (key) => getDownloadUrl(key, 7200)) // 2 hours expiry
         );
 
         // Call Gemini
@@ -117,12 +98,11 @@ async function handler(request: NextRequest) {
         });
 
         await redis.mset(msetObj);
-        await redis.mset(msetObj);
         // IDEMPOTENCY FIX: Use SADD to store unique completed page indices instead of INCRBY
         // This prevents double-counting if a batch is retried.
         const pageIndices = Array.from({ length: keys.length }, (_, i) => start + i);
         if (pageIndices.length > 0) {
-            await redis.sadd(`job:${jobId}:completed_indices`, ...(pageIndices as [number, ...number[]]));
+            await redis.sadd(`job:${jobId}:completed_indices`, ...pageIndices);
         }
         await logger.logToRedis(jobId, `Completed batch ${batchIndex}. Progress: ${start + keys.length}/${manifest.length}`);
 

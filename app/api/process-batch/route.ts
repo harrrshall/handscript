@@ -3,18 +3,8 @@ import { redis } from '@/lib/redis';
 import { generateBatchNotes } from '@/lib/gemini';
 import { renderToHtml } from '@/lib/formatting';
 import { z } from 'zod';
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { BatchResponse, Page } from '@/lib/schema';
-
-const s3Client = new S3Client({
-    endpoint: process.env.B2_ENDPOINT?.startsWith('http') ? process.env.B2_ENDPOINT : `https://${process.env.B2_ENDPOINT}`,
-    region: process.env.B2_REGION,
-    credentials: {
-        accessKeyId: process.env.B2_KEY_ID!,
-        secretAccessKey: process.env.B2_APPLICATION_KEY!,
-    },
-});
+import { getDownloadUrl } from '@/lib/s3';
 
 const processBatchSchema = z.object({
     jobId: z.string(),
@@ -44,15 +34,11 @@ export async function POST(request: Request) {
             }
         }));
 
-        // Generate signed URLs for Gemini
+        // Generate signed URLs for Gemini using the shared s3 module
         // Increased expiry to 2 hours (7200s) to ensure valid during Gemini processing queue time
-        const signedUrls = await Promise.all(keys.map(async (key) => {
-            const command = new GetObjectCommand({
-                Bucket: process.env.B2_BUCKET_NAME,
-                Key: key,
-            });
-            return getSignedUrl(s3Client, command, { expiresIn: 7200 });
-        }));
+        const signedUrls = await Promise.all(
+            keys.map(async (key) => getDownloadUrl(key, 7200))
+        );
 
         // Call Gemini with signed URLs
 

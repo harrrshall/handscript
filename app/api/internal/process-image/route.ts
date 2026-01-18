@@ -4,24 +4,11 @@ import { redis } from "@/lib/redis";
 import { generateNotesForSingleImage } from "@/lib/gemini";
 import { renderToHtml } from "@/lib/formatting";
 import { z } from "zod";
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { SinglePageResponse } from "@/lib/schema";
 import { publishToQStash, queueErrorEmail } from "@/lib/queue";
-import { env } from "@/lib/env";
 import { getBaseUrl } from "@/lib/utils";
 import { logger, metrics } from "@/lib/logger";
-
-const s3Client = new S3Client({
-    endpoint: env.B2_ENDPOINT.startsWith("http")
-        ? env.B2_ENDPOINT
-        : `https://${env.B2_ENDPOINT}`,
-    region: env.B2_REGION,
-    credentials: {
-        accessKeyId: env.B2_KEY_ID,
-        secretAccessKey: env.B2_APPLICATION_KEY,
-    },
-});
+import { getDownloadUrl } from "@/lib/s3";
 
 const processImageSchema = z.object({
     jobId: z.string(),
@@ -57,12 +44,8 @@ async function handler(request: NextRequest) {
 
         await logger.logToRedis(jobId, `Processing page ${index + 1}...`);
 
-        // 1. Generate signed URL for this image
-        const command = new GetObjectCommand({
-            Bucket: env.B2_BUCKET_NAME,
-            Key: imageKey,
-        });
-        const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 7200 });
+        // 1. Generate signed URL for this image using the shared s3 module
+        const signedUrl = await getDownloadUrl(imageKey, 7200); // 2 hours expiry
 
         // 2. Call Gemini for single image
         let pageResponse: SinglePageResponse | null = null;
@@ -95,16 +78,25 @@ async function handler(request: NextRequest) {
             [index]: JSON.stringify({ html: pageHtml, status: "complete" })
         });
 
-        // 4. Atomically increment completed count (using get/set since job is stored as JSON, not a hash)
+        // 4. Atomically increment completed count
+        // Use a separate counter key for atomic increments to avoid race conditions with JSON updates
+        const completedCount = await redis.incr(`job:${jobId}:completed_count`);
+
+        // Update the job object (eventual consistency)
         const jobData: any = await redis.get(`job:${jobId}`);
         if (!jobData) {
             throw new Error(`Job ${jobId} not found in Redis`);
         }
-        jobData.completedPages = (jobData.completedPages || 0) + 1;
-        jobData.updatedAt = Date.now();
-        await redis.set(`job:${jobId}`, jobData);
 
-        const completedCount = jobData.completedPages;
+        jobData.completedPages = completedCount;
+        jobData.updatedAt = Date.now();
+        try {
+            await redis.set(`job:${jobId}`, jobData);
+        } catch (e) {
+            // Ignore race condition on saving JSON, the atomic counter is what matters
+            logger.warn('JobUpdateRace', { jobId, error: (e as Error).message });
+        }
+
         const totalImages = jobData.totalPages || 0;
 
         await logger.logToRedis(jobId, `Page ${index + 1} complete. Progress: ${completedCount}/${totalImages}`);
@@ -203,13 +195,9 @@ async function handler(request: NextRequest) {
 }
 
 // Apply QStash signature verification in production
-// TODO: Re-enable this once we confirm QStash keys are synced correctly.
-// Currently disabling to unblock production "stuck jobs" issue.
 let POST_HANDLER: any = handler;
-/*
 if (process.env.NODE_ENV === 'production' && process.env.QSTASH_CURRENT_SIGNING_KEY) {
     POST_HANDLER = verifySignatureAppRouter(handler);
 }
-*/
 
 export const POST = POST_HANDLER;
